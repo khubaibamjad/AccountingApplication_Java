@@ -1,4 +1,4 @@
-package com.office.ledger.config;
+package com.office.application.config;
 
 import java.nio.file.Path;
 import java.util.Properties;

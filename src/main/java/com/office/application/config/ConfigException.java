@@ -1,4 +1,4 @@
-package com.office.ledger.config;
+package com.office.application.config;
 
 public class ConfigException extends RuntimeException {
 
