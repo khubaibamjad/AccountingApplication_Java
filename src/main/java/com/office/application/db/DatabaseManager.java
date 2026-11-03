@@ -12,6 +12,13 @@ public class DatabaseManager {
     private final String dbUrl;
 
 
+    private static final java.util.logging.Logger FLYWAY_LOGGER =
+            java.util.logging.Logger.getLogger("org.flywaydb");
+
+    static {
+        FLYWAY_LOGGER.setLevel(java.util.logging.Level.WARNING);
+    }
+
     public DatabaseManager()
     {
         this(Path.of(System.getProperty("user.home"), "AccountingApp","AccountingDB"));
