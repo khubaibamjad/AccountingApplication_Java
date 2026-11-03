@@ -5,6 +5,7 @@ import org.flywaydb.core.Flyway;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.*;
 
 public class DatabaseManager {
 
@@ -34,4 +35,18 @@ public class DatabaseManager {
                 .migrate();
     }
 
+    public Connection getConnection() throws SQLException
+    {
+        Connection connection = DriverManager.getConnection(dbUrl);
+        try(Statement st = connection.createStatement())
+        {
+            st.execute("PRAGMA foreign_keys = ON");
+        }
+        return connection;
+    }
+
+    public String getDbUrl()
+    {
+        return dbUrl;
+    }
 }
