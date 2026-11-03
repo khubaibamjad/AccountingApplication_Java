@@ -1,5 +1,7 @@
 package com.office.application.db;
 
+import org.flywaydb.core.Flyway;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,4 +25,13 @@ public class DatabaseManager {
         }
         dbUrl="jdbc:sqlite:"+dbFile.getFileName();
     }
+
+    public void migrate()
+    {
+        Flyway.configure()
+                .dataSource(dbUrl,null,null)
+                .load()
+                .migrate();
+    }
+
 }
