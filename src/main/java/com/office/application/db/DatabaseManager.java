@@ -14,7 +14,7 @@ public class DatabaseManager {
 
     public DatabaseManager()
     {
-        this(Path.of(System.getProperty("user.home"), "AccountingApp", "AccountingDB"));
+        this(Path.of(System.getProperty("user.home"), "AccountingApp","AccountingDB"));
     }
 
     public DatabaseManager(Path dbFile)
@@ -24,7 +24,7 @@ public class DatabaseManager {
         } catch(IOException e){
             throw new RuntimeException("Unable to create the database file",e);
         }
-        dbUrl="jdbc:sqlite:"+dbFile.getFileName();
+        dbUrl="jdbc:sqlite:"+dbFile.toAbsolutePath();
     }
 
     public void migrate()
@@ -37,7 +37,7 @@ public class DatabaseManager {
 
     public Connection getConnection() throws SQLException
     {
-        Connection connection = DriverManager.getConnection(dbUrl);
+        Connection connection = DriverManager.getConnection(getDbUrl());
         try(Statement st = connection.createStatement())
         {
             st.execute("PRAGMA foreign_keys = ON");
