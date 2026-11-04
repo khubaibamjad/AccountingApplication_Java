@@ -34,13 +34,38 @@ public class Main {
             System.out.println("Accounts in DB: " + rs.getInt(1));
         }
 
-        Account b = Account.create("5300", "Electricity Expense", AccountType.EXPENSE);
-        System.out.println(b);
+//        Account b = Account.create("5300", "Electricity Expense", AccountType.EXPENSE);
+//        System.out.println(b);
 
         AccountRepository accounts = new sqliteRepository(db);
+
+//        for (Account a : accounts.findAll()) {
+//            System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")");
+
+
+        if (accounts.findByCode("5300").isEmpty()) {
+            accounts.save(Account.create("5300", "updated", AccountType.EXPENSE));
+            System.out.println("Saved 5300");
+        }
+        Account existing = accounts.findByCode("5300").orElseThrow();
+
+        Account updated = new Account(
+                existing.id(),       // same id, so it UPDATEs instead of INSERTing
+                existing.code(),
+                "updated",           // new name
+                AccountType.LIABILITY
+        );
+        accounts.save(updated);
+        System.out.println("Updated 5300");
+        accounts.save(updated);
+        System.out.println("Updated 5300");
+
+        System.out.println(accounts.findByCode("5300").orElseThrow());
+        System.out.println(accounts.findByCode("9999").isPresent() ? "found" : "9999 not found");
 
         for (Account a : accounts.findAll()) {
             System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")");
         }
+
     }
 }
