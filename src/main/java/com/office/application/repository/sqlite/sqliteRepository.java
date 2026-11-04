@@ -41,19 +41,54 @@ public class sqliteRepository implements AccountRepository {
 
     @Override
     public Optional<Account> findByCode(String code) {
-        return Optional.empty();
+        String sql = "SELECT id, code, name, type from accounts where code = ?";
+
+        try (Connection con = db.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1,code);
+            try(ResultSet rs = ps.executeQuery())
+            {
+                if(rs.next()){
+                    return Optional.of(mapRow(rs));
+                }
+                return Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to find account"+code, e);
+        }
     }
 
     @Override
     public void save(Account account) {
 
+        String sql = """
+            INSERT INTO accounts (id, code, name, type)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                code = excluded.code,
+                name = excluded.name,
+                type = excluded.type
+            """;
+
+        try(Connection con = db.getConnection();
+            PreparedStatement ps = con.prepareStatement(sql))
+        {
+            ps.setString(1,account.id().toString());
+            ps.setString(2,account.code());
+            ps.setString(3,account.name());
+            ps.setString(4,account.type().name());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to save account"+account.code(),e);
+        }
+
     }
 
-    public Account mapRow(ResultSet rs)throws SQLException
-    {
+    public Account mapRow(ResultSet rs) throws SQLException {
         return new Account(UUID.fromString(rs.getString("id")),
-                rs.getString("name"),
                 rs.getString("code"),
+                rs.getString("name"),
                 AccountType.valueOf(rs.getString("type")));
 
     }
