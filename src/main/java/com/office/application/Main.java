@@ -4,8 +4,13 @@ import com.office.application.config.AppConfig;
 import com.office.application.db.DatabaseManager;
 import com.office.application.model.Account;
 import com.office.application.model.AccountType;
+import com.office.application.model.Party;
+import com.office.application.model.PartyType;
 import com.office.application.repository.AccountRepository;
+import com.office.application.repository.PartyRepository;
+import com.office.application.repository.sqlite.sqlitePartyRepository;
 import com.office.application.repository.sqlite.sqliteRepository;
+import com.office.application.service.PartyService;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -42,30 +47,51 @@ public class Main {
 //        for (Account a : accounts.findAll()) {
 //            System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")");
 
+//
+//        if (accounts.findByCode("5300").isEmpty()) {
+//            accounts.save(Account.create("5300", "updated", AccountType.EXPENSE));
+//            System.out.println("Saved 5300");
+//        }
+//        Account existing = accounts.findByCode("5300").orElseThrow();
+//
+//        Account updated = new Account(
+//                existing.id(),       // same id, so it UPDATEs instead of INSERTing
+//                existing.code(),
+//                "updated",           // new name
+//                AccountType.LIABILITY
+//        );
+//        accounts.save(updated);
+//        System.out.println("Updated 5300");
+//        accounts.save(updated);
+//        System.out.println("Updated 5300");
+//
+//        System.out.println(accounts.findByCode("5300").orElseThrow());
+//        System.out.println(accounts.findByCode("9999").isPresent() ? "found" : "9999 not found");
+//
+//        for (Account a : accounts.findAll()) {
+//            System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")");
+//        }
 
-        if (accounts.findByCode("5300").isEmpty()) {
-            accounts.save(Account.create("5300", "updated", AccountType.EXPENSE));
-            System.out.println("Saved 5300");
+        PartyRepository parties = new sqlitePartyRepository(db);
+        PartyService partyService = new PartyService(parties, accounts);
+
+        if (parties.findAll().isEmpty()) {
+            partyService.createParty("ABC Traders", PartyType.VENDOR, "0300-1234567", "Lahore");
+            partyService.createParty("XYZ Ltd", PartyType.CUSTOMER, null, "Karachi");
+            System.out.println("Created 2 parties");
         }
-        Account existing = accounts.findByCode("5300").orElseThrow();
 
-        Account updated = new Account(
-                existing.id(),       // same id, so it UPDATEs instead of INSERTing
-                existing.code(),
-                "updated",           // new name
-                AccountType.LIABILITY
-        );
-        accounts.save(updated);
-        System.out.println("Updated 5300");
-        accounts.save(updated);
-        System.out.println("Updated 5300");
+        System.out.println("--- Parties ---");
+        parties.findAll().forEach(System.out::println);
 
-        System.out.println(accounts.findByCode("5300").orElseThrow());
-        System.out.println(accounts.findByCode("9999").isPresent() ? "found" : "9999 not found");
+        System.out.println("--- Accounts ---");
+        accounts.findAll().forEach(a -> System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")"));
 
-        for (Account a : accounts.findAll()) {
-            System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")");
-        }
+        System.out.println("--- All parties ---");
+        parties.findAll().forEach(System.out::println);
+
+        System.out.println("--- Vendors only ---");
+        parties.findByType(PartyType.VENDOR).forEach(System.out::println);
 
     }
 }
