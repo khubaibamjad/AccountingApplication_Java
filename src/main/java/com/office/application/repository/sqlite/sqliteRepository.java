@@ -1,0 +1,60 @@
+package com.office.application.repository.sqlite;
+
+import com.office.application.db.DatabaseManager;
+import com.office.application.model.Account;
+import com.office.application.model.AccountType;
+import com.office.application.repository.AccountRepository;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+public class sqliteRepository implements AccountRepository {
+    private final DatabaseManager db;
+
+    public sqliteRepository(DatabaseManager db) {
+        this.db = db;
+    }
+
+    @Override
+    public List<Account> findAll() {
+        String sql = "Select id, code, name, type FROM accounts ORDER BY code";
+        List<Account> result = new ArrayList<>();
+
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                result.add(mapRow(rs));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to load accounts", e);
+        }
+        return result;
+    }
+
+    @Override
+    public Optional<Account> findByCode(String code) {
+        return Optional.empty();
+    }
+
+    @Override
+    public void save(Account account) {
+
+    }
+
+    public Account mapRow(ResultSet rs)throws SQLException
+    {
+        return new Account(UUID.fromString(rs.getString("id")),
+                rs.getString("name"),
+                rs.getString("code"),
+                AccountType.valueOf(rs.getString("type")));
+
+    }
+}
