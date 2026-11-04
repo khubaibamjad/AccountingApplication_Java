@@ -4,6 +4,8 @@ import com.office.application.config.AppConfig;
 import com.office.application.db.DatabaseManager;
 import com.office.application.model.Account;
 import com.office.application.model.AccountType;
+import com.office.application.repository.AccountRepository;
+import com.office.application.repository.sqlite.sqliteRepository;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -32,7 +34,13 @@ public class Main {
             System.out.println("Accounts in DB: " + rs.getInt(1));
         }
 
-        Account a = Account.create("5300", "Electricity Expense", AccountType.EXPENSE);
-        System.out.println(a);
+        Account b = Account.create("5300", "Electricity Expense", AccountType.EXPENSE);
+        System.out.println(b);
+
+        AccountRepository accounts = new sqliteRepository(db);
+
+        for (Account a : accounts.findAll()) {
+            System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")");
+        }
     }
 }
