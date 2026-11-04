@@ -2,6 +2,8 @@ package com.office.application;
 
 import com.office.application.config.AppConfig;
 import com.office.application.db.DatabaseManager;
+import com.office.application.model.Account;
+import com.office.application.model.AccountType;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -29,5 +31,8 @@ public class Main {
             rs.next();
             System.out.println("Accounts in DB: " + rs.getInt(1));
         }
+
+        Account a = Account.create("5300", "Electricity Expense", AccountType.EXPENSE);
+        System.out.println(a);
     }
 }
