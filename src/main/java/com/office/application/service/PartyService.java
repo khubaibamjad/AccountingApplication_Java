@@ -22,7 +22,6 @@ public class PartyService {
     }
 
     public Party createParty(String name, PartyType type, String phone, String region) {
-        // Customers owe you money, so ASSET. Vendors (and BOTH) are owed money, so LIABILITY.
         AccountType accountType = (type == PartyType.CUSTOMER) ? AccountType.ASSET : AccountType.LIABILITY;
         String code = nextCode(type);
 
