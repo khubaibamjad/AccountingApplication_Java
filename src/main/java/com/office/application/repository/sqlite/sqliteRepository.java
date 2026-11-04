@@ -11,6 +11,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public class sqliteRepository implements AccountRepository {
@@ -36,6 +37,16 @@ public class sqliteRepository implements AccountRepository {
             throw new RuntimeException("Failed to load accounts", e);
         }
         return result;
+    }
+
+    @Override
+    public Optional<Account> findByCode(String code) {
+        return Optional.empty();
+    }
+
+    @Override
+    public void save(Account account) {
+
     }
 
     public Account mapRow(ResultSet rs)throws SQLException
