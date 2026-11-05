@@ -41,7 +41,12 @@ GitHub > Actions > "Windows installer" (about 5-8 min). Runs the tests again, th
 ## 7. Rollback
 1. Uninstall (Settings > Apps), install the previous `.exe`.
 2. If the new version changed the database, also restore the backup taken before the update:
-   close the app, copy `backups\AccountingDB-<date>.db` over `AccountingDB`, delete `AccountingDB-wal` and `AccountingDB-shm`.
+   File > Restore from backup... > `backups\AccountingDB-<date>.db`.
+
+## Moving to another PC
+1. Old PC: File > Backup database... > save to USB.
+2. New PC: install the same or a newer version, log in, File > Restore from backup... > choose the file.
+3. The app closes; reopen and log in with the admin password from the old PC.
 
 ## Where things are on Windows
 | What | Path |

@@ -29,8 +29,9 @@ The app auto-locks after 15 idle minutes (Admin > Lock now locks immediately).
 Environment variables override settings: `OFFICELEDGER_DATA_DIR`, `OFFICELEDGER_COMPANY`,
 `OFFICELEDGER_BACKUP_DAYS`, `OFFICELEDGER_AUTOLOCK_MINUTES`.
 
-**Restore a backup:** close the app, copy `backups/AccountingDB-YYYY-MM-DD.db` over `AccountingDB`
-(delete `AccountingDB-wal` and `AccountingDB-shm` if present), start the app.
+**Restore a backup / move to another PC:** File > Backup database... on the old PC, then on the new PC
+File > Restore from backup... and pick the file. The app checks the file, upgrades older backups,
+saves a safety copy of the current data, restores, and closes; reopen and log in with the password from the backup.
 
 ## Build an installer
 ```bash

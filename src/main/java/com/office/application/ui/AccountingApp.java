@@ -92,6 +92,8 @@ public class AccountingApp extends Application {
 
         MenuItem backup = new MenuItem("Backup database...");
         backup.setOnAction(e -> backup(stage, db));
+        MenuItem restore = new MenuItem("Restore from backup...");
+        restore.setOnAction(e -> restore(db));
         MenuItem folder = new MenuItem("Show data, settings & backups folder");
         folder.setOnAction(e -> Ui.info("Data: " + db.getDbFile()
                 + "\n\nSettings: " + config.configFile()
@@ -108,7 +110,7 @@ public class AccountingApp extends Application {
         activity.setOnAction(e -> AdminDialogs.activityLog(ctx.audit, stage));
 
         MenuBar menu = new MenuBar(
-                new Menu("File", null, backup, folder, new SeparatorMenuItem(), exit),
+                new Menu("File", null, backup, restore, folder, new SeparatorMenuItem(), exit),
                 new Menu("Admin", null, lock, changePw, new SeparatorMenuItem(), activity));
 
         BorderPane root = new BorderPane(tabs);
@@ -167,6 +169,32 @@ public class AccountingApp extends Application {
     private void openLedger(java.util.UUID accountId) {
         tabs.getSelectionModel().select(ledgerTab);
         ledger.show(accountId);
+    }
+
+    private void restore(DatabaseManager db) {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Choose a Texaxis Accounts backup");
+        fc.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Backups (*.db)", "*.db"),
+                new FileChooser.ExtensionFilter("All files", "*.*"));
+        if (config.backupDir().toFile().isDirectory()) fc.setInitialDirectory(config.backupDir().toFile());
+        File f = fc.showOpenDialog(stage);
+        if (f == null) return;
+
+        DatabaseManager.RestorePlan[] plan = new DatabaseManager.RestorePlan[1];
+        if (!Ui.attempt(() -> plan[0] = db.prepareRestore(f.toPath()))) return;
+        boolean yes = Ui.confirm("Restore from:\n" + f.getName() + "\n\nIt contains " + plan[0].summary() + ".\n\n"
+                + "ALL current data will be replaced by this backup. A safety copy of the current data is saved first.\n\n"
+                + "After restoring, log in with the admin password that was in use when this backup was made.\n\nRestore now?");
+        if (!yes) { db.cancelRestore(plan[0]); return; }
+
+        java.nio.file.Path[] safety = new java.nio.file.Path[1];
+        if (!Ui.attempt(() -> safety[0] = db.applyRestore(plan[0]))) return;
+        ctx.audit.record("DATABASE_RESTORED", "From " + f.getName() + " (" + plan[0].summary() + "); previous data saved as " + safety[0].getFileName());
+        ctx.auth.logout();
+        Ui.info("Restore complete.\n\nYour previous data was saved as:\n" + safety[0]
+                + "\n\nThe app will now close. Open it again and log in.");
+        javafx.application.Platform.exit();
     }
 
     private void backup(Stage stage, DatabaseManager db) {

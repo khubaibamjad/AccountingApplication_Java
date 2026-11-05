@@ -131,6 +131,100 @@ public class DatabaseManager {
         }
     }
 
+    // --- restore -------------------------------------------------------------
+
+    /** What a backup file contains; shown to the user before they confirm the restore. */
+    public record RestorePlan(Path source, Path checkedCopy, int parties, int entries, String lastEntryDate, String version) {
+        public String summary() {
+            return parties + " parties, " + entries + " transactions"
+                    + (lastEntryDate == null ? "" : ", latest dated " + lastEntryDate) + " (database version " + version + ")";
+        }
+    }
+
+    /**
+     * Checks a backup WITHOUT touching the live data: works on a temporary copy, verifies it is a healthy
+     * Texaxis Accounts database from this or an older app version, and upgrades the copy if it is older.
+     */
+    public RestorePlan prepareRestore(Path backup) {
+        Path src = backup.toAbsolutePath().normalize();
+        if (src.equals(dbFile.normalize())) throw new IllegalArgumentException("That is the live database itself. Choose a backup file.");
+        if (!Files.isRegularFile(src)) throw new IllegalArgumentException("File not found: " + src);
+        try {
+            byte[] head = new byte[16];
+            try (var in = Files.newInputStream(src)) {
+                if (in.read(head) != 16 || !new String(head, java.nio.charset.StandardCharsets.US_ASCII).startsWith("SQLite format 3"))
+                    throw new IllegalArgumentException("This is not a Texaxis Accounts backup (not a database file).");
+            }
+            Path copy = Files.createTempFile(dbFile.getParent(), "restore-check-", ".db");
+            Files.copy(src, copy, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            try {
+                String url = "jdbc:sqlite:" + copy;
+                try (Connection c = DriverManager.getConnection(url); Statement st = c.createStatement()) {
+                    try (ResultSet rs = st.executeQuery("PRAGMA quick_check")) {
+                        if (!rs.next() || !"ok".equalsIgnoreCase(rs.getString(1)))
+                            throw new IllegalArgumentException("The backup file is damaged and cannot be used.");
+                    }
+                    try (ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN "
+                            + "('flyway_schema_history','accounts','parties','journal_entries','journal_lines')")) {
+                        if (!rs.next() || rs.getInt(1) != 5)
+                            throw new IllegalArgumentException("This database is not from Texaxis Accounts.");
+                    }
+                }
+                Flyway flyway = Flyway.configure().dataSource(url, null, null).load();
+                boolean newer = java.util.Arrays.stream(flyway.info().all())
+                        .anyMatch(m -> m.getState().name().startsWith("FUTURE"));
+                if (newer)
+                    throw new IllegalArgumentException("This backup was made by a NEWER version of Texaxis Accounts. Update the app first.");
+                flyway.migrate();   // older backup: upgrade the copy now, so the live data is never left half-upgraded
+
+                try (Connection c = DriverManager.getConnection(url); Statement st = c.createStatement();
+                     ResultSet rs = st.executeQuery("SELECT (SELECT COUNT(*) FROM parties), (SELECT COUNT(*) FROM journal_entries), "
+                             + "(SELECT MAX(entry_date) FROM journal_entries), "
+                             + "(SELECT MAX(CAST(version AS INTEGER)) FROM flyway_schema_history WHERE success = 1)")) {
+                    rs.next();
+                    return new RestorePlan(src, copy, rs.getInt(1), rs.getInt(2), rs.getString(3), "V" + rs.getInt(4));
+                }
+            } catch (RuntimeException | SQLException e) {
+                Files.deleteIfExists(copy);
+                if (e instanceof IllegalArgumentException iae) throw iae;
+                throw new IllegalArgumentException("The backup could not be read: " + e.getMessage(), e);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not read the backup file", e);
+        }
+    }
+
+    /**
+     * Replaces ALL live data with the checked backup. A safety copy of the current data is written first,
+     * so a restore can itself be undone. Returns that safety copy. The app should restart afterwards.
+     */
+    public Path applyRestore(RestorePlan plan) {
+        try {
+            Path dir = dbFile.getParent().resolve("backups");
+            Files.createDirectories(dir);
+            Path safety = dir.resolve("AccountingDB-before-restore-"
+                    + java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss")) + ".db");
+            backupTo(safety);
+            ownerOnly(safety, "rw-------");
+            try (Connection c = DriverManager.getConnection(dbUrl); Statement st = c.createStatement()) {
+                // SQLite online backup API (sqlite-jdbc command): copies every page of the checked file into the live DB
+                st.executeUpdate("restore from '" + plan.checkedCopy().toString().replace("'", "''") + "'");
+            }
+            return safety;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (SQLException e) {
+            throw new RuntimeException("Restore failed, your data was not changed: " + e.getMessage(), e);
+        } finally {
+            try { Files.deleteIfExists(plan.checkedCopy()); } catch (IOException ignored) { }
+        }
+    }
+
+    /** User changed their mind: remove the temporary checked copy. */
+    public void cancelRestore(RestorePlan plan) {
+        try { Files.deleteIfExists(plan.checkedCopy()); } catch (IOException ignored) { }
+    }
+
     public Path getDbFile() {
         return dbFile;
     }

@@ -6,6 +6,7 @@ import com.office.application.report.LedgerRow;
 import com.office.application.report.PartyBalance;
 import com.office.application.report.StatementLine;
 import com.office.application.report.TrialBalanceRow;
+import com.office.application.model.Party;
 import com.office.application.service.TransactionService.Request;
 import com.office.application.service.ValidationException;
 import com.office.application.ui.AppContext;
@@ -280,5 +281,65 @@ class AccountingFlowTest {
         // a party is required
         assertThrows(ValidationException.class, () -> ctx.transactions.record(
                 new Request(TransactionType.PARTY_OPENING, today, null, null, null, new BigDecimal("1"), null, null, null, null, true)));
+    }
+
+    @Test
+    void restoreFromBackupReplacesDataAndKeepsSafetyCopy() throws Exception {
+        ctx.parties.createParty("Before Backup", PartyType.CUSTOMER, null, null);
+        Path backup = dir.resolve("mybackup.db");
+        ctx.db.backupTo(backup);
+        ctx.parties.createParty("After Backup", PartyType.CUSTOMER, null, null);
+        assertEquals(2, ctx.parties.all().size());
+
+        var plan = ctx.db.prepareRestore(backup);
+        assertEquals(1, plan.parties());
+        Path safety = ctx.db.applyRestore(plan);
+        assertTrue(java.nio.file.Files.exists(safety));
+        assertFalse(java.nio.file.Files.exists(plan.checkedCopy()), "temporary copy cleaned up");
+
+        AppContext fresh = new AppContext(db);               // what the app sees after restart
+        assertEquals(List.of("Before Backup"), fresh.parties.all().stream().map(Party::name).toList());
+
+        // the safety copy can undo the restore
+        fresh.db.applyRestore(fresh.db.prepareRestore(safety));
+        assertEquals(2, new AppContext(db).parties.all().size());
+    }
+
+    @Test
+    void restoreRejectsBadFiles() throws Exception {
+        Path notDb = dir.resolve("notes.db");
+        java.nio.file.Files.writeString(notDb, "hello");
+        assertThrows(IllegalArgumentException.class, () -> ctx.db.prepareRestore(notDb));
+
+        Path otherSqlite = dir.resolve("other.db");
+        try (var c = java.sql.DriverManager.getConnection("jdbc:sqlite:" + otherSqlite); var st = c.createStatement()) {
+            st.execute("CREATE TABLE something (x INTEGER)");
+        }
+        assertThrows(IllegalArgumentException.class, () -> ctx.db.prepareRestore(otherSqlite));
+        assertThrows(IllegalArgumentException.class, () -> ctx.db.prepareRestore(dir.resolve("test.db")));     // live DB
+        assertThrows(IllegalArgumentException.class, () -> ctx.db.prepareRestore(dir.resolve("missing.db")));
+
+        // a backup from a NEWER app version is refused
+        Path newer = dir.resolve("newer.db");
+        ctx.db.backupTo(newer);
+        try (var c = java.sql.DriverManager.getConnection("jdbc:sqlite:" + newer); var st = c.createStatement()) {
+            st.execute("INSERT INTO flyway_schema_history (installed_rank, version, description, type, script, checksum, "
+                    + "installed_by, installed_on, execution_time, success) VALUES (999, '99', 'future', 'SQL', 'V99__future.sql', 0, '', CURRENT_TIMESTAMP, 0, 1)");
+        }
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> ctx.db.prepareRestore(newer));
+        assertTrue(ex.getMessage().contains("NEWER"));
+        assertEquals(0, ctx.parties.all().size(), "live data untouched by failed attempts");
+    }
+
+    @Test
+    void restoreUpgradesOldBackup() throws Exception {
+        Path old = dir.resolve("old-v4.db");
+        org.flywaydb.core.Flyway.configure().dataSource("jdbc:sqlite:" + old, null, null).target("4").load().migrate();
+        var plan = ctx.db.prepareRestore(old);
+        assertEquals("V7", plan.version());
+        ctx.db.applyRestore(plan);
+        AppContext fresh = new AppContext(db);
+        fresh.auth.ensureDefaultAdmin();                     // users table exists after upgrade
+        assertTrue(fresh.auth.hasUsers());
     }
 }
