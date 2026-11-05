@@ -18,6 +18,9 @@ final class NewTransactionView extends VBox implements Refreshable {
     private final ComboBox<Party> party = new ComboBox<>();
     private final ComboBox<Account> category = new ComboBox<>();
     private final TextField product = new TextField();
+    private final TextField quantity = new TextField();
+    private final TextField price = new TextField();
+    private final Label total = new Label("0.00");
     private final TextField amount = new TextField();
     private final TextField paidNow = new TextField();
     private final TextField cost = new TextField();
@@ -33,16 +36,26 @@ final class NewTransactionView extends VBox implements Refreshable {
         type.getItems().setAll(TransactionType.values());
         type.setValue(TransactionType.PURCHASE);
         type.setOnAction(e -> layoutForType());
-        product.setPromptText("required, e.g. Cement 50 bags");
+        product.setPromptText("required, e.g. Cement");
+        quantity.setPromptText("kg, e.g. 1250.5");
+        price.setPromptText("price per kg, e.g. 85");
+        total.getStyleClass().add("card-value");
+        quantity.textProperty().addListener((o, a, b) -> updateTotal());
+        price.textProperty().addListener((o, a, b) -> updateTotal());
+        Ui.qtyField(quantity);
+        Ui.moneyField(price);
+        Ui.moneyField(amount);
+        Ui.moneyField(paidNow);
+        Ui.moneyField(cost);
         amount.setPromptText("e.g. 200000");
         paidNow.setPromptText("leave empty if nothing paid now");
         cost.setPromptText("optional: what these goods cost you");
-        note.setPromptText("optional, e.g. invoice #123");
+        note.setPromptText("optional, e.g. invoice #123, truck no.");
         party.setPromptText("select...");
         direction.getItems().setAll("They owe us", "We owe them");
         direction.setValue("They owe us");
         category.setPromptText("select...");
-        for (Control c : List.of(type, date, party, category, product, amount, paidNow, cost, payment, note, direction))
+        for (Control c : List.of(type, date, party, category, product, quantity, price, amount, paidNow, cost, payment, note, direction))
             c.setMaxWidth(Double.MAX_VALUE);
 
         save.setDefaultButton(true);
@@ -91,8 +104,15 @@ final class NewTransactionView extends VBox implements Refreshable {
             category.setValue(category.getItems().stream().filter(a -> keep != null && a.id().equals(keep.id())).findFirst().orElse(null));
             form.addRow(r++, new Label((t == TransactionType.EXPENSE ? "Expense category" : "Asset") + " *"), category);
         }
-        if (t.needsProduct()) form.addRow(r++, new Label("Product *"), product);
-        form.addRow(r++, new Label((t.canPayPartNow() ? "Total amount" : "Amount") + " *"), amount);
+        if (t.needsProduct()) {
+            form.addRow(r++, new Label("Product *"), product);
+            form.addRow(r++, new Label("Quantity (kg) *"), quantity);
+            form.addRow(r++, new Label("Price per kg *"), price);
+            form.addRow(r++, new Label("Total amount"), total);      // calculated: quantity x price
+            updateTotal();
+        } else {
+            form.addRow(r++, new Label("Amount *"), amount);
+        }
         if (t.canPayPartNow()) form.addRow(r++, new Label(t == TransactionType.SALE ? "Received now" : "Paid now"), paidNow);
         if (t == TransactionType.SALE) form.addRow(r++, new Label("Cost of goods"), cost);
         if (t != TransactionType.PARTY_OPENING) {
@@ -107,7 +127,7 @@ final class NewTransactionView extends VBox implements Refreshable {
             form.addRow(r++, new Label(t == TransactionType.PAYMENT_RECEIVED || t == TransactionType.OWNER_INVESTMENT
                     || t == TransactionType.SALE ? "Received into" : "Paid from"), payment);
         }
-        form.addRow(r, new Label("Note"), note);
+        form.addRow(r, new Label("Description"), note);
 
         hint.setText(switch (t) {
             case PURCHASE -> "Stock bought from a vendor. Whatever is not paid now is added to what you owe them.";
@@ -122,6 +142,24 @@ final class NewTransactionView extends VBox implements Refreshable {
         });
     }
 
+    /** Live total = quantity x price per kg, shown as the user types. */
+    private void updateTotal() {
+        try {
+            var q = Ui.parseMoney(quantity.getText(), "Quantity");
+            var p = Ui.parseMoney(price.getText(), "Price");
+            var t = TransactionService.total(q, p);
+            total.setText(t == null ? "0.00" : Ui.money(t));
+        } catch (RuntimeException e) {
+            total.setText("—");
+        }
+    }
+
+    private static java.math.BigDecimal requiredNumber(TextField f, String field) {
+        java.math.BigDecimal v = Ui.parseMoney(f.getText(), field);
+        if (v == null) throw new com.office.application.service.ValidationException(field + " is required");
+        return v;
+    }
+
     private void save() {
         save.setDisable(true);   // no double-saving on a double click
         try {
@@ -132,12 +170,14 @@ final class NewTransactionView extends VBox implements Refreshable {
                         t.needsParty() ? party.getValue() : null,
                         t.needsCategory() ? category.getValue() : null,
                         payment.getValue(),
-                        Ui.parseMoney(amount.getText(), "Amount"),
+                        t.needsProduct() ? null : Ui.parseMoney(amount.getText(), "Amount"),
                         t.canPayPartNow() ? Ui.parseMoney(paidNow.getText(), t == TransactionType.SALE ? "Received now" : "Paid now") : null,
                         t == TransactionType.SALE ? Ui.parseMoney(cost.getText(), "Cost of goods") : null,
                         t.needsProduct() ? product.getText() : null,
                         note.getText(),
-                        "They owe us".equals(direction.getValue()));
+                        "They owe us".equals(direction.getValue()),
+                        t.needsProduct() ? requiredNumber(quantity, "Quantity (kg)") : null,
+                        t.needsProduct() ? requiredNumber(price, "Price per kg") : null);
 
                 List<String> warnings = ctx.transactions.warnings(req);
                 if (!warnings.isEmpty() && !Ui.confirm(String.join("\n\n", warnings) + "\n\nSave anyway?")) return;
@@ -145,10 +185,14 @@ final class NewTransactionView extends VBox implements Refreshable {
                 JournalEntry e = ctx.transactions.record(req);
                 amount.clear();
                 product.clear();
+                quantity.clear();
+                price.clear();
                 paidNow.clear();
                 cost.clear();
                 note.clear();
-                Ui.info("Saved: " + e.description());
+                Ui.info("Saved: " + e.description()
+                        + (e.product() == null ? "" : "\n" + e.product() + ": " + Ui.qty(e.quantityKg()) + " kg x " + Ui.money(e.pricePerKg()) + " per kg")
+                        + "\nAmount: " + Ui.money(e.amount()));
             });
         } finally {
             save.setDisable(false);

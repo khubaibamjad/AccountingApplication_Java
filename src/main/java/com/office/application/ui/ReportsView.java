@@ -23,8 +23,7 @@ final class ReportsView extends VBox implements Refreshable {
         this.range = new DateRangeBar("This month", this::refresh);
 
         trial.getColumns().addAll(
-                Ui.col("Code", r -> r.account().code(), 80),
-                Ui.col("Account", r -> r.account().name(), 280),
+                Ui.col("Account", r -> r.account().name(), 360),
                 Ui.moneyCol("Debit", TrialBalanceRow::debit, 140),
                 Ui.moneyCol("Credit", TrialBalanceRow::credit, 140));
 

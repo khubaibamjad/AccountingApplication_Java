@@ -47,8 +47,8 @@ public class JournalService {
     }
 
     private static String describe(JournalEntry e) {
-        BigDecimal amount = e.lines().stream().map(JournalLine::debit).max(BigDecimal::compareTo).orElse(BigDecimal.ZERO);
-        return e.entryDate() + " " + e.description() + " = " + amount + " [" + e.id() + "]";
+        String qty = e.quantityKg() == null ? "" : " | " + e.product() + " " + Money.qty(e.quantityKg()) + " kg @ " + Money.format(e.pricePerKg());
+        return e.entryDate() + " " + e.description() + qty + " = " + Money.format(e.amount()) + " [" + e.id() + "]";
     }
 
     public List<JournalEntry> entries(LocalDate from, LocalDate to) {

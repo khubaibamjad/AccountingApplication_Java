@@ -14,16 +14,32 @@ git tag vX.Y.Z && git push origin vX.Y.Z
 GitHub > Actions > "Windows installer" (about 5-8 min). Runs the tests again, then publishes
 `TexaxisAccounts-X.Y.Z.exe` under GitHub > Releases.
 
+## 2b. Make Windows trust the installer
+Unsigned installers show "Windows protected your PC / Unknown publisher". To remove that:
+1. **Submit each new .exe to Microsoft (free):** https://www.microsoft.com/en-us/wdsi/filesubmission
+   -> "Software developer" -> upload the .exe -> mark it as not malware. Reduces Defender/SmartScreen false alarms.
+2. **Code-sign it (paid, permanent fix):** buy a code-signing certificate (OV, about a year) or use
+   Microsoft's Artifact Signing (monthly, check country eligibility). Export it as `.pfx`, then in GitHub >
+   Settings > Secrets and variables > Actions add:
+   - `CERT_PFX_BASE64` = output of `base64 -w0 cert.pfx`
+   - `CERT_PASSWORD`   = the .pfx password
+   The next tag build signs the installer automatically. SmartScreen trust builds up as more PCs install it.
+3. Each release also publishes `SHA256SUMS.txt`; check a download with
+   `Get-FileHash TexaxisAccounts-X.Y.Z.exe` in PowerShell.
+
 ## 3. Install on each office PC
 1. Copy the `.exe` (USB / download from Releases).
 2. Run it. The file is not code-signed, so Windows SmartScreen may show
    "Windows protected your PC": click **More info > Run anyway**.
 3. Start menu > Texaxis > TexaxisAccounts (desktop shortcut is also created).
 4. Login `admin` / `Admin@123` -> set the real password immediately.
+5. The app opens maximized and runs a **PC security check** (antivirus, firewall, disk encryption,
+   Windows updates, sign-in password). If it shows problems, fix them (it says how), then
+   Admin > PC security check to re-check.
 
 ## 4. Go-live data (once, in this order)
 1. Accounts: add any extra expense categories.
-2. Parties: add all customers and vendors.
+2. Parties: add all customers and vendors. Choose **Registered** (NTN required) or **Unregistered**.
 3. New Transaction > Owner investment: opening Cash, Bank and Inventory (stock value).
 4. New Transaction > Opening balance of a party: old dues, one per party.
 5. Reports > Balance Sheet: confirm it balances and matches your old books.

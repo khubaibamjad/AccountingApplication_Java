@@ -21,9 +21,9 @@ public record Account(UUID id, String code, String name, AccountType type) {
         return new Account(id, code, newName, type);
     }
 
-    /** Used by combo boxes: "1000 - Cash". */
+    /** Shown in drop-downs: just the name. Codes are internal (sorting/grouping) and never shown to users. */
     @Override
     public String toString() {
-        return code + " - " + name;
+        return name;
     }
 }

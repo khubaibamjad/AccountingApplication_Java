@@ -82,8 +82,9 @@ class AccountingFlowTest {
         assertBooksBalance();
 
         List<LedgerRow> ledger = ctx.reports.ledger(accOf(abc), today.withDayOfMonth(1), today);
-        assertEquals("Purchase from ABC Traders - Cement", ledger.get(1).description());
-        assertEquals("Payment to ABC Traders (with purchase) - Cement", ledger.get(2).description());
+        assertEquals("Purchase from ABC Traders", ledger.get(1).description());
+        assertEquals("Cement", ledger.get(1).product());
+        assertEquals("Payment to ABC Traders (with purchase)", ledger.get(2).description());
         assertEquals(m("100000"), ledger.get(ledger.size() - 1).balance());
     }
 
@@ -336,7 +337,7 @@ class AccountingFlowTest {
         Path old = dir.resolve("old-v4.db");
         org.flywaydb.core.Flyway.configure().dataSource("jdbc:sqlite:" + old, null, null).target("4").load().migrate();
         var plan = ctx.db.prepareRestore(old);
-        assertEquals("V7", plan.version());
+        assertEquals("V8", plan.version());
         ctx.db.applyRestore(plan);
         AppContext fresh = new AppContext(db);
         fresh.auth.ensureDefaultAdmin();                     // users table exists after upgrade

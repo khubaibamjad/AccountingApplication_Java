@@ -39,9 +39,15 @@ public class PartyService {
     }
 
     /** Creates the party and its own ledger account together. */
+    /** Unregistered party (no NTN). */
     public Party createParty(String name, PartyType type, String phone, String region) {
+        return createParty(name, type, phone, region, false, null);
+    }
+
+    public Party createParty(String name, PartyType type, String phone, String region, boolean registered, String ntn) {
         if (type == null) throw new ValidationException("Choose a party type");
         checkDetails(name, phone, region, null);
+        String cleanNtn = checkNtn(registered, ntn, null);
 
         // Customers owe you (ASSET). Vendors and BOTH are owed (LIABILITY); the sign of the balance tells the direction.
         boolean customer = type == PartyType.CUSTOMER;
@@ -51,19 +57,42 @@ public class PartyService {
                 : CodeAllocator.next(accounts.findAll(), VENDOR_START, VENDOR_END, 1);
 
         Account account = Account.create(code, name, accountType);
-        Party party = Party.create(name, type, phone, region, account.id());
+        Party party = Party.create(name, type, phone, region, account.id(), registered, cleanNtn);
         parties.saveWithAccount(party, account);
-        audit.record("PARTY_CREATED", type + " '" + party.name() + "' (account " + code + ")");
+        audit.record("PARTY_CREATED", type + " '" + party.name() + "' " + party.status()
+                + (registered ? " NTN " + cleanNtn : "") + " (account " + code + ")");
         return party;
     }
 
     /** Updates contact details; keeps the party's account name in sync. */
-    public void update(Party party) {
-        checkDetails(party.name(), party.phone(), party.region(), party);
+    public void update(Party input) {
+        checkDetails(input.name(), input.phone(), input.region(), input);
+        String cleanNtn = checkNtn(input.registered(), input.ntn(), input);
+        Party party = new Party(input.id(), input.name(), input.type(), input.phone(), input.region(), input.accountId(),
+                input.registered(), cleanNtn);
         parties.save(party);
-        audit.record("PARTY_UPDATED", "'" + party.name() + "' phone=" + party.phone() + " region=" + party.region());
+        audit.record("PARTY_UPDATED", "'" + party.name() + "' " + party.status() + (party.registered() ? " NTN " + cleanNtn : "")
+                + " phone=" + party.phone() + " region=" + party.region());
         accounts.findById(party.accountId())
                 .ifPresent(a -> accounts.save(a.withName(party.name())));
+    }
+
+    /**
+     * Registered parties need a valid, unique NTN: 7 digits with optional check digit (1234567 or 1234567-8),
+     * or a 13-digit CNIC (3520212345671 or 35202-1234567-1). Returns the cleaned NTN, or null if unregistered.
+     */
+    private String checkNtn(boolean registered, String ntn, Party self) {
+        if (!registered) return null;
+        if (ntn == null || ntn.isBlank()) throw new ValidationException("NTN is required for a registered party");
+        String n = ntn.trim().replace(" ", "");
+        if (!n.matches("\\d{7}(-?\\d)?") && !n.matches("\\d{13}") && !n.matches("\\d{5}-\\d{7}-\\d"))
+            throw new ValidationException("NTN must be 7 digits (e.g. 1234567 or 1234567-8) or a 13-digit CNIC");
+        String digits = n.replace("-", "");
+        boolean taken = parties.findAll().stream()
+                .anyMatch(p -> p.ntn() != null && p.ntn().replace("-", "").equals(digits)
+                        && (self == null || !p.id().equals(self.id())));
+        if (taken) throw new ValidationException("Another party already has NTN " + n);
+        return n;
     }
 
     private void checkDetails(String name, String phone, String region, Party self) {

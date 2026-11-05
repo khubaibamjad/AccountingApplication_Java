@@ -16,16 +16,14 @@ final class AccountsView extends VBox implements Refreshable {
 
     private final AppContext ctx;
     private final TableView<Row> table = Ui.table();
-    private final TextField code = new TextField();
     private final TextField name = new TextField();
     private final ComboBox<AccountType> type = new ComboBox<>();
 
     AccountsView(AppContext ctx, Consumer<Account> openLedger) {
         this.ctx = ctx;
         table.getColumns().addAll(
-                Ui.col("Code", r -> r.account().code(), 80),
-                Ui.col("Name", r -> r.account().name(), 260),
-                Ui.col("Type", r -> r.account().type(), 110),
+                Ui.col("Name", r -> r.account().name(), 300),
+                Ui.col("Type", r -> r.account().type().shortLabel(), 120),
                 Ui.moneyCol("Balance", Row::balance, 140));
         table.setRowFactory(tv -> {
             TableRow<Row> row = new TableRow<>();
@@ -35,18 +33,22 @@ final class AccountsView extends VBox implements Refreshable {
             return row;
         });
 
-        type.getItems().setAll(AccountType.values());
-        type.setOnAction(e -> { if (type.getValue() != null) code.setText(ctx.accounts.suggestCode(type.getValue())); });
+        type.getItems().setAll(AccountType.EXPENSE, AccountType.ASSET, AccountType.INCOME, AccountType.LIABILITY, AccountType.EQUITY);
+        type.setValue(AccountType.EXPENSE);
+        type.setConverter(new javafx.util.StringConverter<>() {
+            @Override public String toString(AccountType t) { return t == null ? "" : t.label(); }
+            @Override public AccountType fromString(String s) { return null; }
+        });
+        name.setPromptText("e.g. Courier Charges");
 
         GridPane form = Ui.form();
         form.addRow(0, new Label("Type"), type);
-        form.addRow(1, new Label("Code"), code);
-        form.addRow(2, new Label("Name"), name);
+        form.addRow(1, new Label("Name"), name);
 
         Button add = new Button("Add account");
         add.setOnAction(e -> {
-            if (Ui.attempt(() -> ctx.accounts.create(code.getText(), name.getText(), type.getValue()))) {
-                code.clear(); name.clear(); refresh();
+            if (Ui.attempt(() -> ctx.accounts.create(name.getText(), type.getValue()))) {
+                name.clear(); refresh();
             }
         });
         Button rename = new Button("Rename selected");
@@ -62,7 +64,7 @@ final class AccountsView extends VBox implements Refreshable {
         });
 
         VBox page = Ui.page(Ui.title("Chart of Accounts"),
-                new Label("Double-click an account to open its ledger. Party accounts (13xx customers, 21xx vendors) are created automatically."),
+                new Label("Double-click an account to open its ledger. Each customer and vendor gets its own account automatically."),
                 table, Ui.row(rename, export(table, "Accounts")), new Label("Add account (e.g. a new expense category)"), form, add);
         VBox.setVgrow(page, javafx.scene.layout.Priority.ALWAYS);
         getChildren().add(page);

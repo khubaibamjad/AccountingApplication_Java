@@ -26,7 +26,10 @@ final class LedgerView extends VBox implements Refreshable {
 
         table.getColumns().addAll(
                 Ui.col("Date", LedgerRow::date, 100),
-                Ui.col("Description", LedgerRow::description, 340),
+                Ui.col("Product", LedgerRow::product, 140),
+                Ui.qtyCol("Qty (kg)", LedgerRow::quantityKg, 90),
+                Ui.moneyCol("Price/kg", LedgerRow::pricePerKg, 90),
+                Ui.col("Description", LedgerRow::description, 260),
                 Ui.moneyCol("Debit", LedgerRow::debit, 120),
                 Ui.moneyCol("Credit", LedgerRow::credit, 120),
                 Ui.moneyCol("Balance", LedgerRow::balance, 140));

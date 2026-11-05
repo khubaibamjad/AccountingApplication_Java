@@ -33,7 +33,7 @@ public class SqliteJournalRepository implements JournalRepository {
     public void saveAll(List<JournalEntry> entries) {
         jdbc.inTransaction(conn -> {
             try (PreparedStatement es = conn.prepareStatement(
-                         "INSERT INTO journal_entries (id, entry_date, description, product, linked_entry_id) VALUES (?, ?, ?, ?, ?)");
+                         "INSERT INTO journal_entries (id, entry_date, description, product, linked_entry_id, quantity_kg, price_per_kg) VALUES (?, ?, ?, ?, ?, ?, ?)");
                  PreparedStatement ls = conn.prepareStatement(
                          "INSERT INTO journal_lines (id, entry_id, account_id, debit, credit) VALUES (?, ?, ?, ?, ?)")) {
                 for (JournalEntry entry : entries) {
@@ -44,6 +44,8 @@ public class SqliteJournalRepository implements JournalRepository {
                     // entries saved together (a sale + the payment taken with it) are linked to the first one
                     JournalEntry first = entries.get(0);
                     es.setString(5, entry == first ? null : first.id().toString());
+                    es.setBigDecimal(6, entry.quantityKg());
+                    es.setBigDecimal(7, entry.pricePerKg());
                     es.executeUpdate();
                     for (JournalLine line : entry.lines()) {
                         ls.setString(1, line.id().toString());
@@ -77,10 +79,10 @@ public class SqliteJournalRepository implements JournalRepository {
 
     @Override
     public List<JournalEntry> findEntries(LocalDate from, LocalDate to) {
-        record Row(UUID entryId, LocalDate date, String desc, String product, JournalLine line) { }
+        record Row(UUID entryId, LocalDate date, String desc, String product, BigDecimal qty, BigDecimal price, JournalLine line) { }
 
         List<Row> rows = jdbc.query("""
-                SELECT e.id AS eid, e.entry_date, e.description, e.product, l.id AS lid, l.account_id, l.debit, l.credit
+                SELECT e.id AS eid, e.entry_date, e.description, e.product, e.quantity_kg, e.price_per_kg, l.id AS lid, l.account_id, l.debit, l.credit
                 FROM journal_entries e JOIN journal_lines l ON l.entry_id = e.id
                 WHERE e.entry_date BETWEEN ? AND ?
                 ORDER BY e.entry_date, e.rowid, l.rowid
@@ -89,6 +91,7 @@ public class SqliteJournalRepository implements JournalRepository {
                         LocalDate.parse(rs.getString("entry_date")),
                         rs.getString("description"),
                         rs.getString("product"),
+                        decimal(rs, "quantity_kg", 3), decimal(rs, "price_per_kg", 2),
                         new JournalLine(UUID.fromString(rs.getString("lid")),
                                 UUID.fromString(rs.getString("account_id")),
                                 money(rs, "debit"), money(rs, "credit"))),
@@ -100,14 +103,14 @@ public class SqliteJournalRepository implements JournalRepository {
 
         List<JournalEntry> out = new ArrayList<>();
         grouped.forEach((id, list) -> out.add(new JournalEntry(id, list.get(0).date(), list.get(0).desc(),
-                list.stream().map(Row::line).toList(), list.get(0).product())));
+                list.stream().map(Row::line).toList(), list.get(0).product(), list.get(0).qty(), list.get(0).price())));
         return out;
     }
 
     @Override
     public List<LedgerLine> findLedgerLines(UUID accountId, LocalDate from, LocalDate to) {
         return jdbc.query("""
-                SELECT e.id, e.entry_date, e.description, l.debit, l.credit
+                SELECT e.id, e.entry_date, e.description, e.product, e.quantity_kg, e.price_per_kg, l.debit, l.credit
                 FROM journal_lines l JOIN journal_entries e ON e.id = l.entry_id
                 WHERE l.account_id = ? AND e.entry_date BETWEEN ? AND ?
                 ORDER BY e.entry_date, e.rowid, l.rowid
@@ -115,6 +118,8 @@ public class SqliteJournalRepository implements JournalRepository {
                 rs -> new LedgerLine(UUID.fromString(rs.getString("id")),
                         LocalDate.parse(rs.getString("entry_date")),
                         rs.getString("description"),
+                        rs.getString("product"),
+                        decimal(rs, "quantity_kg", 3), decimal(rs, "price_per_kg", 2),
                         money(rs, "debit"), money(rs, "credit")),
                 accountId, orBeginning(from), to);
     }
@@ -159,6 +164,12 @@ public class SqliteJournalRepository implements JournalRepository {
         Map<UUID, AccountTotals> result = Collections.unmodifiableMap(out);
         totalsCache.put(key, result);
         return result;
+    }
+
+    /** Nullable decimal column with a fixed number of decimals. */
+    private static BigDecimal decimal(ResultSet rs, String col, int scale) throws SQLException {
+        BigDecimal v = rs.getBigDecimal(col);
+        return v == null ? null : v.setScale(scale, java.math.RoundingMode.HALF_UP);
     }
 
     private static LocalDate orBeginning(LocalDate from) {

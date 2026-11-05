@@ -8,7 +8,6 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 
 import java.math.BigDecimal;
-import java.text.DecimalFormat;
 import java.util.Optional;
 import java.util.function.Function;
 
@@ -16,19 +15,47 @@ import java.util.function.Function;
 final class Ui {
     private Ui() { }
 
-    private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00", java.text.DecimalFormatSymbols.getInstance(java.util.Locale.US));   // same on every PC
 
     static String money(BigDecimal v) {
-        return v == null ? "" : MONEY.format(v);
+        return com.office.application.service.Money.format(v);
+    }
+
+    static String qty(BigDecimal v) {
+        return com.office.application.service.Money.qty(v);
     }
 
     static BigDecimal parseMoney(String text, String field) {
-        if (text == null || text.isBlank()) return null;
-        try {
-            return new BigDecimal(text.replace(",", "").trim());
-        } catch (NumberFormatException e) {
-            throw new ValidationException(field + " must be a number");
-        }
+        return com.office.application.service.Money.parse(text, field);
+    }
+
+    /** Re-shows the typed number with separators when the user leaves the box: 1000000 -> 1,000,000.00 */
+    static void moneyField(TextField f) {
+        formatOnExit(f, false);
+    }
+
+    /** Same for kg: 1250.5 -> 1,250.5 */
+    static void qtyField(TextField f) {
+        formatOnExit(f, true);
+    }
+
+    private static void formatOnExit(TextField f, boolean quantity) {
+        f.setStyle("-fx-alignment: CENTER-RIGHT;");
+        f.focusedProperty().addListener((o, was, now) -> {
+            if (now) return;
+            try {
+                BigDecimal v = com.office.application.service.Money.parse(f.getText(), "value");
+                if (v != null) f.setText(quantity ? qty(v) : money(v));
+            } catch (ValidationException ignored) {
+                // leave the text as typed; saving will show the proper message
+            }
+        });
+    }
+
+    /** Right-aligned quantity column (kg, up to 3 decimals). */
+    static <S> TableColumn<S, String> qtyCol(String title, Function<S, BigDecimal> value, double width) {
+        TableColumn<S, String> c = col(title, s -> qty(value.apply(s)), width);
+        c.setStyle("-fx-alignment: CENTER-RIGHT;");
+        return c;
     }
 
     static <S, T> TableColumn<S, T> col(String title, Function<S, T> value, double width) {

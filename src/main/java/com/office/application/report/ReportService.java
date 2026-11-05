@@ -54,13 +54,14 @@ public class ReportService {
     public List<LedgerRow> ledger(Account account, LocalDate from, LocalDate to) {
         BigDecimal running = balance(account, from.minusDays(1));
         List<LedgerRow> rows = new ArrayList<>();
-        rows.add(new LedgerRow(null, null, "Opening balance", null, null, running));
+        rows.add(new LedgerRow(null, null, "Opening balance", null, null, null, null, null, running));
 
         for (LedgerLine l : journals.findLedgerLines(account.id(), from, to)) {
             running = running.add(account.type().balance(l.debit(), l.credit()));
-            rows.add(new LedgerRow(l.entryId(), l.date(), l.description(), l.debit(), l.credit(), running));
+            rows.add(new LedgerRow(l.entryId(), l.date(), l.description(), l.product(), l.quantityKg(), l.pricePerKg(),
+                    l.debit(), l.credit(), running));
         }
-        rows.add(new LedgerRow(null, null, "Closing balance", null, null, running));
+        rows.add(new LedgerRow(null, null, "Closing balance", null, null, null, null, null, running));
         return rows;
     }
 
@@ -151,7 +152,7 @@ public class ReportService {
         BigDecimal sum = BigDecimal.ZERO;
         for (Account a : accounts.findByType(type)) {
             BigDecimal b = balanceFrom(a, totals);
-            if (b.signum() != 0) out.add(StatementLine.item(a.code() + "  " + a.name(), b));
+            if (b.signum() != 0) out.add(StatementLine.item(a.name(), b));
             sum = sum.add(b);
         }
         out.add(StatementLine.total("Total " + title, sum));

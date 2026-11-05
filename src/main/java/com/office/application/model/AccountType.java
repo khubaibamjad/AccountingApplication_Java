@@ -13,6 +13,27 @@ public enum AccountType {
         this.codeEnd = codeEnd;
     }
 
+    /** Friendly name for screens. (Not toString(): the enum name is what the database stores.) */
+    public String label() {
+        return switch (this) {
+            case ASSET -> "Asset (cash, bank, stock, customers)";
+            case LIABILITY -> "Liability (what we owe)";
+            case EQUITY -> "Owner's capital";
+            case INCOME -> "Income";
+            case EXPENSE -> "Expense";
+        };
+    }
+
+    public String shortLabel() {
+        return switch (this) {
+            case ASSET -> "Asset";
+            case LIABILITY -> "Liability";
+            case EQUITY -> "Capital";
+            case INCOME -> "Income";
+            case EXPENSE -> "Expense";
+        };
+    }
+
     /** Assets and expenses grow with debits; the others grow with credits. */
     public boolean isDebitNormal() {
         return this == ASSET || this == EXPENSE;

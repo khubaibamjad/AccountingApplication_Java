@@ -23,15 +23,41 @@ public class TransactionService {
      * costOfGoods (sales only, optional): what the sold goods cost you; moves that value
      * from Inventory to Cost of Goods Sold so profit is correct.
      * theyOweUs (PARTY_OPENING only): true = the party owed you before you started using the app.
+     * quantityKg / pricePerKg (purchases and sales): the amount is calculated from them.
+     * note: the user's free-text description.
      */
     public record Request(TransactionType type, LocalDate date, Party party, Account category,
                           Account paymentAccount, BigDecimal amount, BigDecimal paidNow,
-                          BigDecimal costOfGoods, String product, String note, boolean theyOweUs) {
+                          BigDecimal costOfGoods, String product, String note, boolean theyOweUs,
+                          BigDecimal quantityKg, BigDecimal pricePerKg) {
+
+        public Request(TransactionType type, LocalDate date, Party party, Account category, Account paymentAccount,
+                       BigDecimal amount, BigDecimal paidNow, BigDecimal costOfGoods, String product, String note,
+                       boolean theyOweUs) {
+            this(type, date, party, category, paymentAccount, amount, paidNow, costOfGoods, product, note, theyOweUs, null, null);
+        }
+
         /** Same as above for every type except PARTY_OPENING (theyOweUs = false). */
         public Request(TransactionType type, LocalDate date, Party party, Account category, Account paymentAccount,
                        BigDecimal amount, BigDecimal paidNow, BigDecimal costOfGoods, String product, String note) {
-            this(type, date, party, category, paymentAccount, amount, paidNow, costOfGoods, product, note, false);
+            this(type, date, party, category, paymentAccount, amount, paidNow, costOfGoods, product, note, false, null, null);
         }
+
+        /**
+         * Purchases/sales: amount = quantity (kg) x price per kg, rounded to 2 decimals.
+         * If quantity and price are not given, the typed amount is used (older callers, tests).
+         */
+        public BigDecimal effectiveAmount() {
+            if (type != null && type.needsProduct() && quantityKg != null && pricePerKg != null)
+                return quantityKg.multiply(pricePerKg).setScale(2, java.math.RoundingMode.HALF_UP);
+            return amount;
+        }
+    }
+
+    /** quantity x price, for the live total on the form. null if either is missing. */
+    public static BigDecimal total(BigDecimal quantityKg, BigDecimal pricePerKg) {
+        if (quantityKg == null || pricePerKg == null) return null;
+        return quantityKg.multiply(pricePerKg).setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     private final JournalService journal;
@@ -44,26 +70,28 @@ public class TransactionService {
 
     public JournalEntry record(Request r) {
         validate(r);
-        BigDecimal amount = r.amount();
+        BigDecimal amount = r.effectiveAmount();
         BigDecimal paid = orZero(r.paidNow());
         BigDecimal cost = orZero(r.costOfGoods());
         String product = r.type().needsProduct() ? r.product().trim() : null;
+        BigDecimal qty = r.type().needsProduct() ? r.quantityKg() : null;
+        BigDecimal price = r.type().needsProduct() ? r.pricePerKg() : null;
         List<JournalLine> lines = new ArrayList<>();
         String desc;
         JournalEntry extra = null;   // separate payment entry when a purchase/sale is (partly) paid now
 
         switch (r.type()) {
             case PURCHASE -> {
-                desc = "Purchase from " + r.party().name() + " - " + product;
+                desc = "Purchase from " + r.party().name();
                 lines.add(JournalLine.debit(SystemAccounts.INVENTORY, amount));
                 lines.add(JournalLine.credit(r.party().accountId(), amount));
                 if (paid.signum() > 0)
-                    extra = JournalEntry.create(r.date(), withNote("Payment to " + r.party().name() + " (with purchase) - " + product, r.note()),
+                    extra = JournalEntry.create(r.date(), withNote("Payment to " + r.party().name() + " (with purchase)", r.note()),
                             List.of(JournalLine.debit(r.party().accountId(), paid),
-                                    JournalLine.credit(r.paymentAccount().id(), paid)), product);
+                                    JournalLine.credit(r.paymentAccount().id(), paid)), product);   // payment row: product as reference only, no qty/price
             }
             case SALE -> {
-                desc = "Sale to " + r.party().name() + " - " + product;
+                desc = "Sale to " + r.party().name();
                 lines.add(JournalLine.debit(r.party().accountId(), amount));
                 lines.add(JournalLine.credit(SystemAccounts.SALES, amount));
                 if (cost.signum() > 0) {                       // stock leaves inventory at cost
@@ -71,9 +99,9 @@ public class TransactionService {
                     lines.add(JournalLine.credit(SystemAccounts.INVENTORY, cost));
                 }
                 if (paid.signum() > 0)
-                    extra = JournalEntry.create(r.date(), withNote("Payment from " + r.party().name() + " (with sale) - " + product, r.note()),
+                    extra = JournalEntry.create(r.date(), withNote("Payment from " + r.party().name() + " (with sale)", r.note()),
                             List.of(JournalLine.debit(r.paymentAccount().id(), paid),
-                                    JournalLine.credit(r.party().accountId(), paid)), product);
+                                    JournalLine.credit(r.party().accountId(), paid)), product);   // payment row: product as reference only, no qty/price
             }
             case PAYMENT_MADE -> {
                 desc = "Payment to " + r.party().name();
@@ -114,7 +142,7 @@ public class TransactionService {
             default -> throw new ValidationException("Unsupported type " + r.type());
         }
 
-        JournalEntry entry = JournalEntry.create(r.date(), withNote(desc, r.note()), lines, product);
+        JournalEntry entry = JournalEntry.create(r.date(), withNote(desc, r.note()), lines, product, qty, price);
         journal.postAll(extra == null ? List.of(entry) : List.of(entry, extra));
         return entry;
     }
@@ -126,7 +154,7 @@ public class TransactionService {
     public List<String> warnings(Request r) {
         validate(r);
         List<String> out = new ArrayList<>();
-        BigDecimal amount = r.amount();
+        BigDecimal amount = r.effectiveAmount();
         BigDecimal paid = orZero(r.paidNow());
         LocalDate today = LocalDate.now();
 
@@ -174,7 +202,11 @@ public class TransactionService {
         if (r.date() == null) throw new ValidationException("Choose a valid date");
         if (r.date().isBefore(EARLIEST) || r.date().isAfter(LocalDate.now().plusYears(1)))
             throw new ValidationException("The date " + r.date() + " looks wrong. Please check it.");
-        checkAmount(r.amount(), "Amount", true);
+        if (r.type().needsProduct() && (r.quantityKg() != null || r.pricePerKg() != null)) {
+            checkQuantity(r.quantityKg());
+            checkAmount(r.pricePerKg(), "Price per kg", true);
+        }
+        checkAmount(r.effectiveAmount(), r.type().needsProduct() ? "Total amount" : "Amount", true);
         checkAmount(r.paidNow(), r.type() == TransactionType.SALE ? "Received now" : "Paid now", false);
         checkAmount(r.costOfGoods(), "Cost of goods", false);
 
@@ -186,10 +218,10 @@ public class TransactionService {
         if (r.type().needsProduct() && (r.product() == null || r.product().isBlank()))
             throw new ValidationException("Product name is required for a " + (r.type() == TransactionType.SALE ? "sale" : "purchase"));
         if (r.product() != null && r.product().trim().length() > 150) throw new ValidationException("Product name is too long (max 150 characters)");
-        if (r.note() != null && r.note().trim().length() > 200) throw new ValidationException("Note is too long (max 200 characters)");
+        if (r.note() != null && r.note().trim().length() > 200) throw new ValidationException("Description is too long (max 200 characters)");
 
         BigDecimal paid = orZero(r.paidNow());
-        if (paid.compareTo(r.amount()) > 0)
+        if (paid.compareTo(r.effectiveAmount()) > 0)
             throw new ValidationException((r.type() == TransactionType.SALE ? "Received now" : "Paid now") + " cannot be more than the total");
 
         boolean needsPaymentAccount = r.type() != TransactionType.PARTY_OPENING && (!r.type().canPayPartNow() || paid.signum() > 0);
@@ -207,12 +239,19 @@ public class TransactionService {
         if (v.compareTo(MAX_AMOUNT) > 0) throw new ValidationException(field + " is too large");
     }
 
+    private static void checkQuantity(BigDecimal q) {
+        if (q == null) throw new ValidationException("Quantity (kg) is required");
+        if (q.signum() <= 0) throw new ValidationException("Quantity (kg) must be greater than 0");
+        if (q.stripTrailingZeros().scale() > 3) throw new ValidationException("Quantity can have at most 3 decimal places (grams)");
+        if (q.compareTo(new BigDecimal("999999999999")) > 0) throw new ValidationException("Quantity is too large");
+    }
+
     private static BigDecimal orZero(BigDecimal v) {
         return v == null ? BigDecimal.ZERO : v;
     }
 
     private static String money(BigDecimal v) {
-        return new java.text.DecimalFormat("#,##0.00", java.text.DecimalFormatSymbols.getInstance(java.util.Locale.US)).format(v);
+        return Money.format(v);
     }
 
     private static String withNote(String desc, String note) {

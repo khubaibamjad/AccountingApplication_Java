@@ -26,10 +26,12 @@ final class TransactionsView extends VBox implements Refreshable {
         this.range = new DateRangeBar("This month", this::refresh);
         table.getColumns().addAll(
                 Ui.col("Date", JournalEntry::entryDate, 100),
-                Ui.col("Description", JournalEntry::description, 280),
-                Ui.col("Product", JournalEntry::product, 140),
+                Ui.col("Description", JournalEntry::description, 240),
+                Ui.col("Product", JournalEntry::product, 130),
+                Ui.qtyCol("Qty (kg)", JournalEntry::quantityKg, 90),
+                Ui.moneyCol("Price/kg", JournalEntry::pricePerKg, 90),
                 Ui.col("Details", this::details, 380),
-                Ui.moneyCol("Amount", e -> e.lines().stream().map(JournalLine::debit).max(BigDecimal::compareTo).orElse(BigDecimal.ZERO), 120));
+                Ui.moneyCol("Amount", JournalEntry::amount, 120));
 
         Button delete = new Button("Delete selected");
         delete.setOnAction(e -> {

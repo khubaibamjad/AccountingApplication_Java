@@ -22,7 +22,7 @@ final class DashboardView extends VBox implements Refreshable {
         this.ctx = ctx;
         open.getColumns().addAll(
                 Ui.col("Party", pb -> pb.party().name(), 220),
-                Ui.col("Type", pb -> pb.party().type(), 100),
+                Ui.col("Type", pb -> pb.party().type().label(), 130),
                 Ui.col("Status", PartyBalance::status, 140),
                 Ui.moneyCol("Amount", pb -> pb.net().abs(), 140));
         javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();

@@ -28,6 +28,12 @@ public class AccountService {
         return accounts.findByType(type);
     }
 
+    /** Creates an account with an automatically chosen internal code (users never type codes). */
+    public Account create(String name, AccountType type) {
+        if (type == null) throw new ValidationException("Choose an account type");
+        return create(suggestCode(type), name, type);
+    }
+
     public Account create(String code, String name, AccountType type) {
         if (type == null) throw new ValidationException("Choose an account type");
         String c = code == null ? "" : code.trim();

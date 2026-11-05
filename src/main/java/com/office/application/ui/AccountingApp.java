@@ -106,12 +106,14 @@ public class AccountingApp extends Application {
         lock.setOnAction(e -> lock(db));
         MenuItem changePw = new MenuItem("Change my password...");
         changePw.setOnAction(e -> AdminDialogs.changePassword(ctx.auth, stage));
+        MenuItem security = new MenuItem("PC security check...");
+        security.setOnAction(e -> runSecurityCheck(true));
         MenuItem activity = new MenuItem("Activity log...");
         activity.setOnAction(e -> AdminDialogs.activityLog(ctx.audit, stage));
 
         MenuBar menu = new MenuBar(
                 new Menu("File", null, backup, restore, folder, new SeparatorMenuItem(), exit),
-                new Menu("Admin", null, lock, changePw, new SeparatorMenuItem(), activity));
+                new Menu("Admin", null, lock, changePw, new SeparatorMenuItem(), security, activity));
 
         BorderPane root = new BorderPane(tabs);
         root.setTop(menu);
@@ -128,9 +130,26 @@ public class AccountingApp extends Application {
         stage.setTitle(title());
         Branding.apply(stage);
         stage.setScene(scene);
+        stage.setMaximized(true);   // open full screen size by default
         stage.show();
         restartIdleTimer();
         refresh(tabs.getSelectionModel().getSelectedItem());
+        runSecurityCheck(false);    // once per start, in the background; only speaks up if something is wrong
+    }
+
+    /** showAlways: from the menu. Otherwise only shown when a problem is found. */
+    private void runSecurityCheck(boolean showAlways) {
+        Thread t = new Thread(() -> {
+            var items = com.office.application.security.SystemSecurityCheck.run();
+            long problems = com.office.application.security.SystemSecurityCheck.warnings(items);
+            if (problems > 0) ctx.audit.record("SECURITY_CHECK", problems + " problem(s): "
+                    + items.stream().filter(i -> i.status() == com.office.application.security.SystemSecurityCheck.Status.WARNING)
+                        .map(com.office.application.security.SystemSecurityCheck.Item::name).toList());
+            if (showAlways || problems > 0)
+                javafx.application.Platform.runLater(() -> { if (stage.isShowing()) AdminDialogs.securityReport(items, stage); });
+        }, "security-check");
+        t.setDaemon(true);
+        t.start();
     }
 
     private void lock(DatabaseManager db) {

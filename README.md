@@ -1,13 +1,14 @@
 # Texaxis Accounts
 
-Offline desktop accounting for a small office: parties (customers/vendors) with their own ledgers,
-purchases, sales, payments, expenses, assets, and reports (P&L, Balance Sheet, Trial Balance).
+Offline desktop accounting for a small office: registered (NTN) and unregistered customers/vendors with
+their own ledgers; purchases and sales by product, quantity (kg) and price per kg (amount auto-calculated);
+payments, expenses, assets; reports (P&L, Balance Sheet, Trial Balance); PC security check on Windows.
 Java 21+, JavaFX, SQLite, Flyway. No server, no internet needed.
 
 ## Run (development)
 ```bash
 mvn javafx:run            # or run com.office.application.Main from IntelliJ
-mvn test                  # 20 automated business/security tests
+mvn test                  # 28 automated business/security tests
 ```
 
 ## First login

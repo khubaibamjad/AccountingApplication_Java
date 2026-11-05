@@ -58,4 +58,28 @@ final class AdminDialogs {
         Branding.apply(d);
         return d.showAndWait().filter(b -> b == ButtonType.OK).isPresent();
     }
+
+    /** Shows the PC security results. */
+    static void securityReport(java.util.List<com.office.application.security.SystemSecurityCheck.Item> items, Window owner) {
+        TableView<com.office.application.security.SystemSecurityCheck.Item> t = Ui.table();
+        t.getColumns().addAll(
+                Ui.col("", i -> switch (i.status()) { case OK -> "✔"; case WARNING -> "⚠"; default -> "?"; }, 40),
+                Ui.col("Check", com.office.application.security.SystemSecurityCheck.Item::name, 170),
+                Ui.col("Result", com.office.application.security.SystemSecurityCheck.Item::detail, 330),
+                Ui.col("How to fix", com.office.application.security.SystemSecurityCheck.Item::howToFix, 420));
+        t.getItems().setAll(items);
+        long w = com.office.application.security.SystemSecurityCheck.warnings(items);
+        Label summary = new Label(w == 0 ? "No problems found." : w + " problem(s) found. Please fix them to keep the books safe.");
+        summary.setStyle(w == 0 ? "-fx-text-fill: #1e8449;" : "-fx-text-fill: #c0392b; -fx-font-weight: bold;");
+        VBox page = Ui.page(Ui.title("PC security check"), summary, t,
+                new Label("This check only reads Windows settings; it never changes anything."));
+        Stage s = new Stage();
+        s.initOwner(owner);
+        s.setTitle(Branding.APP_NAME + " - PC security check");
+        Branding.apply(s);
+        Scene scene = new Scene(page, 1000, 420);
+        scene.getStylesheets().add(AdminDialogs.class.getResource("/app.css").toExternalForm());
+        s.setScene(scene);
+        s.show();
+    }
 }

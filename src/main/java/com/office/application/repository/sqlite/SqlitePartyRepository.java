@@ -15,11 +15,12 @@ import java.util.UUID;
 
 public class SqlitePartyRepository implements PartyRepository {
 
-    private static final String SELECT = "SELECT id, name, type, phone, region, account_id FROM parties ";
+    private static final String SELECT = "SELECT id, name, type, phone, region, account_id, registered, ntn FROM parties ";
     private static final String UPSERT = """
-            INSERT INTO parties (id, name, type, phone, region, account_id) VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO parties (id, name, type, phone, region, account_id, registered, ntn) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET name = excluded.name, type = excluded.type,
-                phone = excluded.phone, region = excluded.region, account_id = excluded.account_id
+                phone = excluded.phone, region = excluded.region, account_id = excluded.account_id,
+                registered = excluded.registered, ntn = excluded.ntn
             """;
 
     private final Jdbc jdbc;
@@ -63,7 +64,7 @@ public class SqlitePartyRepository implements PartyRepository {
     }
 
     private static Object[] params(Party p) {
-        return new Object[]{p.id(), p.name(), p.type(), p.phone(), p.region(), p.accountId()};
+        return new Object[]{p.id(), p.name(), p.type(), p.phone(), p.region(), p.accountId(), p.registered() ? 1 : 0, p.ntn()};
     }
 
     private Party mapRow(ResultSet rs) throws SQLException {
@@ -73,6 +74,8 @@ public class SqlitePartyRepository implements PartyRepository {
                 PartyType.valueOf(rs.getString("type")),
                 rs.getString("phone"),
                 rs.getString("region"),
-                UUID.fromString(rs.getString("account_id")));
+                UUID.fromString(rs.getString("account_id")),
+                rs.getInt("registered") == 1,
+                rs.getString("ntn"));
     }
 }
