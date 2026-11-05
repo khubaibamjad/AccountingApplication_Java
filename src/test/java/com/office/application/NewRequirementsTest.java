@@ -113,6 +113,20 @@ class NewRequirementsTest {
     }
 
     @Test
+    void numberBoxesOnlyAcceptNumbers() {
+        for (String ok : new String[]{"", "1", "1250", "1,250", "1250.", "1250.5", "1250.55", "1,000,000.00", ".5"})
+            assertTrue(Money.isValidInput(ok, 2), ok);
+        for (String bad : new String[]{"a", "12a", "1.2.3", "1.234", "-5", "1e5", "12 34", "Rs100", "+1", "١٢"})
+            assertFalse(Money.isValidInput(bad, 2), bad);
+        assertTrue(Money.isValidInput("1250.505", 3));      // kg: grams allowed
+        assertFalse(Money.isValidInput("1250.5055", 3));
+        assertTrue(Money.isValidNtnInput("1234567-8"));
+        assertFalse(Money.isValidNtnInput("12345a"));
+        assertTrue(Money.isValidPhoneInput("+92 300-1234567"));
+        assertFalse(Money.isValidPhoneInput("call me"));
+    }
+
+    @Test
     void accountCodesAreInternalOnly() {
         Account a = ctx.accounts.create("Courier Charges", AccountType.EXPENSE);
         assertEquals("Courier Charges", a.toString(), "drop-downs show names only");

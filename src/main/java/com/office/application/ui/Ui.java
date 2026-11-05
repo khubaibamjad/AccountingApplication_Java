@@ -40,6 +40,10 @@ final class Ui {
 
     private static void formatOnExit(TextField f, boolean quantity) {
         f.setStyle("-fx-alignment: CENTER-RIGHT;");
+        // block letters and symbols as they are typed or pasted: digits, commas, one '.', 2 (money) or 3 (kg) decimals
+        int decimals = quantity ? 3 : 2;
+        f.setTextFormatter(new TextFormatter<String>(change ->
+                com.office.application.service.Money.isValidInput(change.getControlNewText(), decimals) ? change : null));
         f.focusedProperty().addListener((o, was, now) -> {
             if (now) return;
             try {
@@ -49,6 +53,18 @@ final class Ui {
                 // leave the text as typed; saving will show the proper message
             }
         });
+    }
+
+    /** NTN box: only digits and dashes can be typed. */
+    static void ntnField(TextField f) {
+        f.setTextFormatter(new TextFormatter<String>(change ->
+                com.office.application.service.Money.isValidNtnInput(change.getControlNewText()) ? change : null));
+    }
+
+    /** Phone box: only digits, spaces, + - ( ) can be typed. */
+    static void phoneField(TextField f) {
+        f.setTextFormatter(new TextFormatter<String>(change ->
+                com.office.application.service.Money.isValidPhoneInput(change.getControlNewText()) ? change : null));
     }
 
     /** Right-aligned quantity column (kg, up to 3 decimals). */
