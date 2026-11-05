@@ -42,3 +42,4 @@ build/
 # local database (never commit business data)
 AccountingDB
 *.db
+**/app.properties
