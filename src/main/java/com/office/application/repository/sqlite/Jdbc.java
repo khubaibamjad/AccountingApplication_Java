@@ -10,7 +10,7 @@ import java.util.Optional;
 /** Tiny helper that removes the repeated try-with-resources boilerplate from the repositories. */
 final class Jdbc {
 
-    @FunctionalInterface interface RowMapper<T> { T map(ResultSet rs) throws SQLException; }
+    @FunctionalInterface public interface RowMapper<T> { T map(ResultSet rs) throws SQLException; }
     @FunctionalInterface interface Work { void run(Connection conn) throws SQLException; }
 
     private final DatabaseManager db;

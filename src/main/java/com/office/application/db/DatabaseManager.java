@@ -40,12 +40,20 @@ public class DatabaseManager {
                 .dataSource(dbUrl, null, null)
                 .load()
                 .migrate();
+        try (Connection c = getConnection(); Statement st = c.createStatement()) {
+            st.execute("PRAGMA journal_mode = WAL");   // faster writes, readers never blocked (stored in the file)
+            st.execute("PRAGMA optimize");
+        } catch (SQLException e) {
+            throw new RuntimeException("Could not configure the database: " + e.getMessage(), e);
+        }
     }
 
     public Connection getConnection() throws SQLException {
         Connection connection = DriverManager.getConnection(dbUrl);
         try (Statement st = connection.createStatement()) {
             st.execute("PRAGMA foreign_keys = ON");
+            st.execute("PRAGMA busy_timeout = 5000");   // wait (don't fail) if another copy of the app is writing
+            st.execute("PRAGMA synchronous = NORMAL");  // safe with WAL, much faster commits
         }
         return connection;
     }
@@ -64,6 +72,29 @@ public class DatabaseManager {
             throw new UncheckedIOException(e);
         } catch (SQLException e) {
             throw new RuntimeException("Backup failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Once a day, copies the database to AccountingApp/backups and keeps the newest 30 copies.
+     * Returns the backup written, or null if today's backup already exists.
+     */
+    public Path dailyBackup() {
+        Path dir = dbFile.getParent().resolve("backups");
+        Path today = dir.resolve("AccountingDB-" + java.time.LocalDate.now() + ".db");
+        try {
+            Files.createDirectories(dir);
+            if (Files.exists(today)) return null;
+            backupTo(today);
+            try (var files = Files.list(dir)) {
+                files.filter(p -> p.getFileName().toString().matches("AccountingDB-\\d{4}-\\d{2}-\\d{2}\\.db"))
+                     .sorted(java.util.Comparator.reverseOrder())
+                     .skip(30)
+                     .forEach(p -> p.toFile().delete());
+            }
+            return today;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

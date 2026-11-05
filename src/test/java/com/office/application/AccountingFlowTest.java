@@ -234,4 +234,33 @@ class AccountingFlowTest {
         assertEquals(1, ctx2.parties.all().size());
         assertEquals(1, ctx2.journal.entries(today, today).size());
     }
+
+    @Test
+    void cachedBalancesNeverStale() {
+        Party p = ctx.parties.createParty("Cache Co", PartyType.CUSTOMER, null, null);
+        ctx.transactions.record(req(TransactionType.SALE, p, null, cash, "100", null, null, "X"));
+        assertEquals(m("100"), net(p));
+        // a second copy of the app writing to the same file
+        AppContext other = new AppContext(new DatabaseManager(dir.resolve("test.db")));
+        other.transactions.record(req(TransactionType.PAYMENT_RECEIVED, p, null, cash, "40", null, null, null));
+        assertEquals(m("60"), net(p));
+        // delete + re-add the same number of lines must not reuse a stale result
+        JournalEntry last = ctx.journal.entries(today, today).stream().filter(e -> e.description().startsWith("Payment")).findFirst().orElseThrow();
+        ctx.journal.delete(last.id());
+        assertEquals(m("100"), net(p));
+        ctx.transactions.record(req(TransactionType.PAYMENT_RECEIVED, p, null, cash, "70", null, null, null));
+        assertEquals(m("30"), net(p));
+    }
+
+    @Test
+    void dailyBackupOncePerDayKeeps30() throws Exception {
+        Path dirB = dir.resolve("backups");
+        java.nio.file.Files.createDirectories(dirB);
+        for (int i = 1; i <= 35; i++)
+            java.nio.file.Files.writeString(dirB.resolve("AccountingDB-" + today.minusDays(i) + ".db"), "old");
+        assertNotNull(ctx.db.dailyBackup());
+        assertNull(ctx.db.dailyBackup());                                  // second call same day: nothing
+        try (var files = java.nio.file.Files.list(dirB)) { assertEquals(30, files.count()); }
+        assertTrue(java.nio.file.Files.exists(dirB.resolve("AccountingDB-" + today + ".db")));
+    }
 }

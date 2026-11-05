@@ -33,6 +33,12 @@ public class AccountingApp extends Application {
             db = new DatabaseManager();
             db.migrate();
             ctx = new AppContext(db);
+            // automatic daily safety copy, in the background so startup stays instant
+            Thread backup = new Thread(() -> {
+                try { db.dailyBackup(); } catch (RuntimeException ex) { ex.printStackTrace(); }
+            }, "daily-backup");
+            backup.setDaemon(true);
+            backup.start();
         } catch (RuntimeException e) {
             e.printStackTrace();
             Ui.error("The database could not be opened:\n\n" + e.getMessage()
@@ -57,9 +63,13 @@ public class AccountingApp extends Application {
 
         MenuItem backup = new MenuItem("Backup database...");
         backup.setOnAction(e -> backup(stage, db));
+        MenuItem folder = new MenuItem("Show data & backups folder");
+        folder.setOnAction(e -> Ui.info("Your data: " + db.getDbFile()
+                + "\n\nAutomatic daily backups (last 30 days): " + db.getDbFile().getParent().resolve("backups")
+                + "\n\nTo restore: close the app, then copy a backup over AccountingDB."));
         MenuItem exit = new MenuItem("Exit");
         exit.setOnAction(e -> stage.close());
-        MenuBar menu = new MenuBar(new Menu("File", null, backup, new SeparatorMenuItem(), exit));
+        MenuBar menu = new MenuBar(new Menu("File", null, backup, folder, new SeparatorMenuItem(), exit));
 
         BorderPane root = new BorderPane(tabs);
         root.setTop(menu);

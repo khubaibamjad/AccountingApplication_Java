@@ -35,8 +35,9 @@ final class DashboardView extends VBox implements Refreshable {
         LocalDate today = LocalDate.now();
         YearMonth m = YearMonth.now();
         BigDecimal[] rp = ctx.reports.receivablesAndPayables(today);
-        BigDecimal cash = ctx.reports.balance(find(SystemAccounts.CASH), today);
-        BigDecimal bank = ctx.reports.balance(find(SystemAccounts.BANK), today);
+        java.util.Map<java.util.UUID, BigDecimal> bal = ctx.reports.balances(today);
+        BigDecimal cash = bal.getOrDefault(SystemAccounts.CASH, BigDecimal.ZERO);
+        BigDecimal bank = bal.getOrDefault(SystemAccounts.BANK, BigDecimal.ZERO);
         BigDecimal profit = ctx.reports.netProfit(m.atDay(1), m.atEndOfMonth());
 
         cards.getChildren().setAll(
@@ -50,10 +51,6 @@ final class DashboardView extends VBox implements Refreshable {
                 .filter(pb -> pb.net().signum() != 0)
                 .sorted(Comparator.comparing((PartyBalance pb) -> pb.net().abs()).reversed())
                 .toList());
-    }
-
-    private com.office.application.model.Account find(java.util.UUID id) {
-        return ctx.accounts.all().stream().filter(a -> a.id().equals(id)).findFirst().orElseThrow();
     }
 
     private static VBox card(String label, BigDecimal value) {
