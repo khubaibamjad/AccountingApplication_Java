@@ -1,0 +1,10 @@
+.root { -fx-font-size: 13px; -fx-font-family: "Segoe UI", "Ubuntu", "Arial"; }
+.title { -fx-font-size: 20px; -fx-font-weight: bold; }
+.hint { -fx-text-fill: #666; }
+.card {
+    -fx-background-color: white; -fx-background-radius: 8; -fx-padding: 14 18;
+    -fx-border-color: #dde3ea; -fx-border-radius: 8; -fx-min-width: 190;
+}
+.card-label { -fx-text-fill: #5a6573; }
+.card-value { -fx-font-size: 20px; -fx-font-weight: bold; }
+.tab-pane > .tab-header-area { -fx-padding: 4 8 0 8; }

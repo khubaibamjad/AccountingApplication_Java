@@ -7,6 +7,8 @@ import com.office.application.model.PartyType;
 import com.office.application.repository.AccountRepository;
 import com.office.application.repository.PartyRepository;
 
+import java.util.List;
+
 public class PartyService {
 
     // Code ranges for party accounts
@@ -21,34 +23,42 @@ public class PartyService {
         this.accounts = accounts;
     }
 
+    public List<Party> all() {
+        return parties.findAll();
+    }
+
+    /** Vendors + BOTH (for purchases/payments made) or customers + BOTH (for sales/receipts). */
+    public List<Party> forSide(boolean vendors) {
+        PartyType side = vendors ? PartyType.VENDOR : PartyType.CUSTOMER;
+        return parties.findAll().stream()
+                .filter(p -> p.type() == side || p.type() == PartyType.BOTH)
+                .toList();
+    }
+
+    /** Creates the party and its own ledger account together. */
     public Party createParty(String name, PartyType type, String phone, String region) {
-        AccountType accountType = (type == PartyType.CUSTOMER) ? AccountType.ASSET : AccountType.LIABILITY;
-        String code = nextCode(type);
+        if (name == null || name.isBlank()) throw new ValidationException("Party name is required");
+        if (type == null) throw new ValidationException("Choose a party type");
+        boolean nameTaken = parties.findAll().stream().anyMatch(p -> p.name().equalsIgnoreCase(name.trim()));
+        if (nameTaken) throw new ValidationException("A party named '" + name.trim() + "' already exists");
+
+        // Customers owe you (ASSET). Vendors and BOTH are owed (LIABILITY); the sign of the balance tells the direction.
+        boolean customer = type == PartyType.CUSTOMER;
+        AccountType accountType = customer ? AccountType.ASSET : AccountType.LIABILITY;
+        String code = customer
+                ? CodeAllocator.next(accounts.findAll(), CUSTOMER_START, CUSTOMER_END, 1)
+                : CodeAllocator.next(accounts.findAll(), VENDOR_START, VENDOR_END, 1);
 
         Account account = Account.create(code, name, accountType);
-        accounts.save(account);
-
         Party party = Party.create(name, type, phone, region, account.id());
-        parties.save(party);
+        parties.saveWithAccount(party, account);
         return party;
     }
 
-    // Finds the highest used code in the range and returns the next one
-    private String nextCode(PartyType type) {
-        int start = (type == PartyType.CUSTOMER) ? CUSTOMER_START : VENDOR_START;
-        int end   = (type == PartyType.CUSTOMER) ? CUSTOMER_END   : VENDOR_END;
-
-        int highest = accounts.findAll().stream()
-                .map(Account::code)
-                .filter(c -> c.matches("\\d+"))          // only numeric codes
-                .mapToInt(Integer::parseInt)
-                .filter(c -> c >= start && c <= end)
-                .max()
-                .orElse(start - 1);                      // none yet, so the first one is "start"
-
-        if (highest >= end) {
-            throw new IllegalStateException("No free account codes left for " + type);
-        }
-        return String.valueOf(highest + 1);
+    /** Updates contact details; keeps the party's account name in sync. */
+    public void update(Party party) {
+        parties.save(party);
+        accounts.findById(party.accountId())
+                .ifPresent(a -> accounts.save(a.withName(party.name())));
     }
 }
