@@ -43,11 +43,11 @@ class AccountingFlowTest {
         Party abc = ctx.parties.createParty("ABC Traders", PartyType.VENDOR, "0300", "Lahore");
         Party xyz = ctx.parties.createParty("XYZ Ltd", PartyType.CUSTOMER, null, "Karachi");
 
-        ctx.transactions.record(new Request(TransactionType.OWNER_INVESTMENT, today, null, null, cash, m("500000"), null, null));
-        ctx.transactions.record(new Request(TransactionType.PURCHASE, today, abc, null, cash, m("200000"), m("100000"), "inv 1"));
-        ctx.transactions.record(new Request(TransactionType.SALE, today, xyz, null, cash, m("80000"), null, null));
-        ctx.transactions.record(new Request(TransactionType.PAYMENT_RECEIVED, today, xyz, null, cash, m("50000"), null, null));
-        ctx.transactions.record(new Request(TransactionType.EXPENSE, today, null, rent, cash, m("30000"), null, null));
+        ctx.transactions.record(new Request(TransactionType.OWNER_INVESTMENT, today, null, null, cash, m("500000"), null, null, null));
+        ctx.transactions.record(new Request(TransactionType.PURCHASE, today, abc, null, cash, m("200000"), m("100000"), "Cement", "inv 1"));
+        ctx.transactions.record(new Request(TransactionType.SALE, today, xyz, null, cash, m("80000"), null, "Steel", null));
+        ctx.transactions.record(new Request(TransactionType.PAYMENT_RECEIVED, today, xyz, null, cash, m("50000"), null, null, null));
+        ctx.transactions.record(new Request(TransactionType.EXPENSE, today, null, rent, cash, m("30000"), null, null, null));
 
         // cash: 500k - 100k + 50k - 30k
         assertEquals(m("420000"), ctx.reports.balance(cash, today));
@@ -71,6 +71,16 @@ class AccountingFlowTest {
         var ledger = ctx.reports.ledger(ctx.accounts.all().stream().filter(a -> a.id().equals(abc.accountId())).findFirst().orElseThrow(),
                 today.withDayOfMonth(1), today);
         assertEquals(m("100000"), ledger.get(ledger.size() - 1).balance());
+        assertEquals("Purchase from ABC Traders - Cement - inv 1", ledger.get(1).description());
+        assertEquals("Payment to ABC Traders (with purchase) - Cement - inv 1", ledger.get(2).description());
+        assertTrue(ctx.journal.entries(today, today).stream().anyMatch(e -> "Steel".equals(e.product())));
+
+        // buying a vehicle lowers cash but is not an expense
+        Account vehicles = ctx.accounts.all().stream().filter(a -> a.code().equals("1250")).findFirst().orElseThrow();
+        ctx.transactions.record(new Request(TransactionType.ASSET_PURCHASE, today, null, vehicles, cash, m("20000"), null, null, null));
+        assertEquals(m("400000"), ctx.reports.balance(cash, today));
+        assertEquals(m("50000"), ctx.reports.netProfit(today.withDayOfMonth(1), today));
+        ctx.journal.delete(ctx.journal.entries(today, today).stream().filter(e -> e.description().startsWith("Bought")).findFirst().orElseThrow().id());
 
         // delete the expense -> cash goes back up
         var expense = ctx.journal.entries(today, today).stream().filter(e -> e.description().startsWith("Rent")).findFirst().orElseThrow();
@@ -93,11 +103,13 @@ class AccountingFlowTest {
     void rejectsBadInput() {
         Party abc = ctx.parties.createParty("ABC", PartyType.VENDOR, null, null);
         assertThrows(ValidationException.class, () -> ctx.transactions.record(
-                new Request(TransactionType.PURCHASE, today, abc, null, cash, m("100"), m("200"), null)));
+                new Request(TransactionType.PURCHASE, today, abc, null, cash, m("100"), m("200"), "X", null)));
+        assertThrows(ValidationException.class, () -> ctx.transactions.record(
+                new Request(TransactionType.SALE, today, abc, null, cash, m("100"), null, "  ", null)));
         assertThrows(ValidationException.class, () -> ctx.journal.post(JournalEntry.create(today, "bad", List.of(
                 JournalLine.debit(cash.id(), m("5000")), JournalLine.credit(rent.id(), m("4000"))))));
         assertThrows(ValidationException.class, () -> ctx.accounts.create("1000", "Dup", AccountType.ASSET));
-        assertEquals("5300", ctx.accounts.suggestCode(AccountType.EXPENSE));
+        assertEquals("5910", ctx.accounts.suggestCode(AccountType.EXPENSE));
     }
 
     @Test

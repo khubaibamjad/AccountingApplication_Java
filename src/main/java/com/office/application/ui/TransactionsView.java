@@ -27,6 +27,7 @@ final class TransactionsView extends VBox implements Refreshable {
         table.getColumns().addAll(
                 Ui.col("Date", JournalEntry::entryDate, 100),
                 Ui.col("Description", JournalEntry::description, 280),
+                Ui.col("Product", JournalEntry::product, 140),
                 Ui.col("Details", this::details, 380),
                 Ui.moneyCol("Amount", e -> e.lines().stream().map(JournalLine::debit).reduce(BigDecimal.ZERO, BigDecimal::add), 120));
 

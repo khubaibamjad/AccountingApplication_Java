@@ -25,6 +25,12 @@ public class JournalService {
         journals.save(entry);
     }
 
+    /** Validates every entry, then saves them together (all or none). */
+    public void postAll(List<JournalEntry> entries) {
+        entries.forEach(this::validate);
+        journals.saveAll(entries);
+    }
+
     public void delete(UUID entryId) {
         journals.delete(entryId);
     }

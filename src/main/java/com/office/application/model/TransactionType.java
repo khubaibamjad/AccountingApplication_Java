@@ -7,6 +7,7 @@ public enum TransactionType {
     PAYMENT_MADE("Payment made (to vendor)"),
     PAYMENT_RECEIVED("Payment received (from customer)"),
     EXPENSE("Expense"),
+    ASSET_PURCHASE("Buy asset (vehicle, equipment...)"),
     OWNER_INVESTMENT("Owner investment / opening cash");
 
     private final String label;
@@ -16,7 +17,17 @@ public enum TransactionType {
     }
 
     public boolean needsParty() {
-        return this != EXPENSE && this != OWNER_INVESTMENT;
+        return this != EXPENSE && this != ASSET_PURCHASE && this != OWNER_INVESTMENT;
+    }
+
+    /** Expense and asset purchases need a category / asset account. */
+    public boolean needsCategory() {
+        return this == EXPENSE || this == ASSET_PURCHASE;
+    }
+
+    /** Purchases and sales must say which product was bought/sold. */
+    public boolean needsProduct() {
+        return this == PURCHASE || this == SALE;
     }
 
     public boolean canPayPartNow() {
