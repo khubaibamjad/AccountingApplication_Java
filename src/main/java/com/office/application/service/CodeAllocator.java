@@ -16,15 +16,15 @@ final class CodeAllocator {
                 .filter(c -> c >= start && c <= end)
                 .max()
                 .orElse(start - step);
-        int next = highest + step;
-        if (next > end) {
-            // range is "full" at this step size, fall back to the first unused number
-            for (int c = start; c <= end; c++) {
-                String s = String.valueOf(c);
-                if (existing.stream().noneMatch(a -> a.code().equals(s))) return s;
-            }
-            throw new ValidationException("No free account codes left between " + start + " and " + end);
+        // prefer round numbers: 5300, then 5910, then 5911
+        for (int s : new int[]{step, 10, 1}) {
+            if (s <= step && highest + s <= end) return String.valueOf(highest + s);
         }
-        return String.valueOf(next);
+        // the top of the range is used up: take the first free number
+        for (int c = start; c <= end; c++) {
+            String code = String.valueOf(c);
+            if (existing.stream().noneMatch(a -> a.code().equals(code))) return code;
+        }
+        throw new ValidationException("No free account codes left between " + start + " and " + end);
     }
 }

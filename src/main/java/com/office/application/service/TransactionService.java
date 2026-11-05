@@ -65,6 +65,11 @@ public class TransactionService {
                 lines.add(JournalLine.debit(r.category().id(), amount));
                 lines.add(JournalLine.credit(r.paymentAccount().id(), amount));
             }
+            case ASSET_PURCHASE -> {
+                desc = "Bought " + r.category().name();
+                lines.add(JournalLine.debit(r.category().id(), amount));
+                lines.add(JournalLine.credit(r.paymentAccount().id(), amount));
+            }
             case OWNER_INVESTMENT -> {
                 desc = "Owner investment";
                 lines.add(JournalLine.debit(r.paymentAccount().id(), amount));
@@ -88,6 +93,7 @@ public class TransactionService {
         if (r.amount() == null || r.amount().signum() <= 0) throw new ValidationException("Amount must be greater than 0");
         if (r.type().needsParty() && r.party() == null) throw new ValidationException("Choose a party");
         if (r.type() == TransactionType.EXPENSE && r.category() == null) throw new ValidationException("Choose an expense category");
+        if (r.type() == TransactionType.ASSET_PURCHASE && r.category() == null) throw new ValidationException("Choose which asset you bought");
 
         BigDecimal paid = r.paidNow() == null ? BigDecimal.ZERO : r.paidNow();
         if (paid.signum() < 0) throw new ValidationException("Paid amount cannot be negative");

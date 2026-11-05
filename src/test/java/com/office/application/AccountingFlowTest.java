@@ -74,6 +74,13 @@ class AccountingFlowTest {
         assertEquals("Purchase from ABC Traders - inv 1", ledger.get(1).description());
         assertEquals("Payment to ABC Traders (with purchase) - inv 1", ledger.get(2).description());
 
+        // buying a vehicle lowers cash but is not an expense
+        Account vehicles = ctx.accounts.all().stream().filter(a -> a.code().equals("1250")).findFirst().orElseThrow();
+        ctx.transactions.record(new Request(TransactionType.ASSET_PURCHASE, today, null, vehicles, cash, m("20000"), null, null));
+        assertEquals(m("400000"), ctx.reports.balance(cash, today));
+        assertEquals(m("50000"), ctx.reports.netProfit(today.withDayOfMonth(1), today));
+        ctx.journal.delete(ctx.journal.entries(today, today).stream().filter(e -> e.description().startsWith("Bought")).findFirst().orElseThrow().id());
+
         // delete the expense -> cash goes back up
         var expense = ctx.journal.entries(today, today).stream().filter(e -> e.description().startsWith("Rent")).findFirst().orElseThrow();
         ctx.journal.delete(expense.id());
@@ -99,7 +106,7 @@ class AccountingFlowTest {
         assertThrows(ValidationException.class, () -> ctx.journal.post(JournalEntry.create(today, "bad", List.of(
                 JournalLine.debit(cash.id(), m("5000")), JournalLine.credit(rent.id(), m("4000"))))));
         assertThrows(ValidationException.class, () -> ctx.accounts.create("1000", "Dup", AccountType.ASSET));
-        assertEquals("5300", ctx.accounts.suggestCode(AccountType.EXPENSE));
+        assertEquals("5910", ctx.accounts.suggestCode(AccountType.EXPENSE));
     }
 
     @Test

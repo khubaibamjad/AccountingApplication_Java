@@ -53,7 +53,6 @@ final class NewTransactionView extends VBox implements Refreshable {
                 .toList());
         payment.setValue(keepPayment != null && payment.getItems().contains(keepPayment)
                 ? keepPayment : payment.getItems().stream().findFirst().orElse(null));
-        category.getItems().setAll(ctx.accounts.byType(AccountType.EXPENSE));
         layoutForType();
     }
 
@@ -70,7 +69,16 @@ final class NewTransactionView extends VBox implements Refreshable {
             party.setValue(party.getItems().contains(keep) ? keep : null);
             form.addRow(r++, new Label(vendors ? "Vendor" : "Customer"), party);
         }
-        if (t == TransactionType.EXPENSE) form.addRow(r++, new Label("Expense category"), category);
+        if (t.needsCategory()) {
+            Account keep = category.getValue();
+            category.getItems().setAll(t == TransactionType.EXPENSE
+                    ? ctx.accounts.byType(AccountType.EXPENSE)
+                    // fixed assets: 1201-1299 (not cash, bank, inventory or party accounts)
+                    : ctx.accounts.byType(AccountType.ASSET).stream()
+                        .filter(a -> a.code().compareTo("1201") >= 0 && a.code().compareTo("1299") <= 0).toList());
+            category.setValue(category.getItems().contains(keep) ? keep : null);
+            form.addRow(r++, new Label(t == TransactionType.EXPENSE ? "Expense category" : "Asset"), category);
+        }
         form.addRow(r++, new Label(t.canPayPartNow() ? "Total amount" : "Amount"), amount);
         if (t.canPayPartNow()) form.addRow(r++, new Label(t == TransactionType.SALE ? "Received now" : "Paid now"), paidNow);
         form.addRow(r++, new Label(t == TransactionType.PAYMENT_RECEIVED || t == TransactionType.OWNER_INVESTMENT
@@ -82,7 +90,8 @@ final class NewTransactionView extends VBox implements Refreshable {
             case SALE -> "Goods sold to a customer. Whatever is not received now is added to what they owe you.";
             case PAYMENT_MADE -> "You paid a vendor. Reduces what you owe them.";
             case PAYMENT_RECEIVED -> "A customer paid you. Reduces what they owe you.";
-            case EXPENSE -> "Rent, salaries, electricity... Add new categories in the Accounts tab (type EXPENSE).";
+            case EXPENSE -> "Fuel, rent, electricity, office food... Need another category? Add it in the Accounts tab (type EXPENSE).";
+            case ASSET_PURCHASE -> "Things the business keeps and uses for years (a car, furniture, computers). Not an expense, so it does not reduce profit. Repairs/fuel for them are expenses.";
             case OWNER_INVESTMENT -> "Money the owner puts into the business. Use it once to record your opening cash/bank.";
         });
     }
@@ -93,7 +102,7 @@ final class NewTransactionView extends VBox implements Refreshable {
             TransactionService.Request req = new TransactionService.Request(
                     t, date.getValue(),
                     t.needsParty() ? party.getValue() : null,
-                    t == TransactionType.EXPENSE ? category.getValue() : null,
+                    t.needsCategory() ? category.getValue() : null,
                     payment.getValue(),
                     Ui.parseMoney(amount.getText(), "Amount"),
                     t.canPayPartNow() ? Ui.parseMoney(paidNow.getText(), "Paid now") : null,
