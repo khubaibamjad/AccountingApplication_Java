@@ -85,6 +85,23 @@ public class sqliteRepository implements AccountRepository {
 
     }
 
+    @Override
+    public Optional<Account> findById(UUID id) {
+        String sql = "SELECT id, code, name, type FROM accounts WHERE id = ?";
+
+        try (Connection conn = db.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, id.toString());
+
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to find account " + id, e);
+        }
+    }
+
     public Account mapRow(ResultSet rs) throws SQLException {
         return new Account(UUID.fromString(rs.getString("id")),
                 rs.getString("code"),

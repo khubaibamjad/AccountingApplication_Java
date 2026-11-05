@@ -4,10 +4,14 @@ import com.office.application.config.AppConfig;
 import com.office.application.db.DatabaseManager;
 import com.office.application.model.*;
 import com.office.application.repository.AccountRepository;
+import com.office.application.repository.JournalRepository;
 import com.office.application.repository.PartyRepository;
+import com.office.application.repository.sqlite.sqliteJournalRepository;
 import com.office.application.repository.sqlite.sqlitePartyRepository;
 import com.office.application.repository.sqlite.sqliteRepository;
+import com.office.application.service.JournalService;
 import com.office.application.service.PartyService;
+import com.office.application.service.ValidationException;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -110,5 +114,21 @@ public class Main {
         System.out.println(purchase.description() + " on " + purchase.entryDate());
         purchase.lines().forEach(System.out::println);
 
+        JournalRepository journals = new sqliteJournalRepository(db);
+
+        JournalService journalService = new JournalService(journals, accounts);
+
+        journalService.post(purchase);
+        System.out.println("Purchase posted");
+
+// Invalid entry: 5,000 debit vs 4,000 credit, so it must be rejected
+        try {
+            journalService.post(JournalEntry.create(LocalDate.now(), "Bad entry", List.of(
+                    JournalLine.debit (inventory, new BigDecimal("5000")),
+                    JournalLine.credit(cash,      new BigDecimal("4000")))));
+            System.out.println("ERROR: bad entry was saved!");
+        } catch (ValidationException e) {
+            System.out.println("Rejected: " + e.getMessage());
+        }
     }
 }

@@ -4,6 +4,7 @@ import com.office.application.model.Account;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface AccountRepository {
 
@@ -11,4 +12,6 @@ public interface AccountRepository {
 
     Optional<Account> findByCode(String code);
     void save(Account account);
+
+    Optional<Account> findById(UUID id);
 }
