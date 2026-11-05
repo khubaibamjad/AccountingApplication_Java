@@ -8,6 +8,8 @@ import com.office.application.repository.PartyRepository;
 import com.office.application.repository.sqlite.SqliteAccountRepository;
 import com.office.application.repository.sqlite.SqliteJournalRepository;
 import com.office.application.repository.sqlite.SqlitePartyRepository;
+import com.office.application.security.AuditLog;
+import com.office.application.security.AuthService;
 import com.office.application.service.*;
 
 /** Wires every object together once (what Spring's @Autowired would do for you). */
@@ -19,6 +21,8 @@ public final class AppContext {
     public final JournalService journal;
     public final TransactionService transactions;
     public final ReportService reports;
+    public final AuditLog audit;
+    public final AuthService auth;
 
     public AppContext(DatabaseManager db) {
         this.db = db;
@@ -26,9 +30,11 @@ public final class AppContext {
         PartyRepository partyRepo = new SqlitePartyRepository(db);
         JournalRepository journalRepo = new SqliteJournalRepository(db);
 
-        this.accounts = new AccountService(accountRepo, partyRepo);
-        this.parties = new PartyService(partyRepo, accountRepo);
-        this.journal = new JournalService(journalRepo, accountRepo);
+        this.audit = new AuditLog(db);
+        this.auth = new AuthService(db, audit);
+        this.accounts = new AccountService(accountRepo, partyRepo, audit);
+        this.parties = new PartyService(partyRepo, accountRepo, audit);
+        this.journal = new JournalService(journalRepo, accountRepo, audit);
         this.reports = new ReportService(journalRepo, accountRepo, partyRepo);
         this.transactions = new TransactionService(journal, reports);
     }

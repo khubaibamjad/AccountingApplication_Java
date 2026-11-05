@@ -1,0 +1,14 @@
+# Office Ledger settings - copy reference only.
+# The app creates the real file on first run at:  <data folder>/app.properties
+# (default data folder: ~/AccountingApp). Environment variables override the file.
+#
+#   OFFICELEDGER_DATA_DIR          where the database, settings and backups live
+#   OFFICELEDGER_COMPANY           company.name
+#   OFFICELEDGER_BACKUP_DAYS       backup.keep.days
+#   OFFICELEDGER_AUTOLOCK_MINUTES  autolock.minutes
+#
+# Never put passwords here: admin passwords are stored hashed inside the database.
+
+company.name=Office Ledger
+backup.keep.days=30
+autolock.minutes=15

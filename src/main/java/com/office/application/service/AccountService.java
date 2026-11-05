@@ -4,6 +4,7 @@ import com.office.application.model.Account;
 import com.office.application.model.AccountType;
 import com.office.application.repository.AccountRepository;
 import com.office.application.repository.PartyRepository;
+import com.office.application.security.AuditLog;
 
 import java.util.List;
 
@@ -11,10 +12,12 @@ public class AccountService {
 
     private final AccountRepository accounts;
     private final PartyRepository parties;
+    private final AuditLog audit;
 
-    public AccountService(AccountRepository accounts, PartyRepository parties) {
+    public AccountService(AccountRepository accounts, PartyRepository parties, AuditLog audit) {
         this.accounts = accounts;
         this.parties = parties;
+        this.audit = audit;
     }
 
     public List<Account> all() {
@@ -36,6 +39,7 @@ public class AccountService {
         checkName(name, null);
         Account a = Account.create(c, name, type);
         accounts.save(a);
+        audit.record("ACCOUNT_CREATED", a.code() + " " + a.name() + " (" + type + ")");
         return a;
     }
 
@@ -44,6 +48,7 @@ public class AccountService {
             throw new ValidationException("This is a party's account. Rename the party in the Parties tab instead.");
         checkName(newName, account);
         accounts.save(account.withName(newName));
+        audit.record("ACCOUNT_RENAMED", account.code() + " '" + account.name() + "' -> '" + newName.trim() + "'");
     }
 
     /** Next free code in the type's range, e.g. 5300 after 5200. */

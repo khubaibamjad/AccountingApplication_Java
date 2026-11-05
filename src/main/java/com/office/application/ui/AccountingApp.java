@@ -1,5 +1,6 @@
 package com.office.application.ui;
 
+import com.office.application.config.AppConfig;
 import com.office.application.db.DatabaseManager;
 import com.office.application.model.Account;
 import com.office.application.model.Party;
@@ -19,8 +20,14 @@ public class AccountingApp extends Application {
     private LedgerView ledger;
     private Tab ledgerTab;
 
+    private Stage stage;
+    private AppContext ctx;
+    private AppConfig config;
+    private javafx.animation.PauseTransition idle;
+
     @Override
     public void start(Stage stage) {
+        this.stage = stage;
         // any unexpected error anywhere: show it instead of failing silently
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
             e.printStackTrace();
@@ -28,25 +35,47 @@ public class AccountingApp extends Application {
         });
 
         DatabaseManager db;
-        AppContext ctx;
         try {
-            db = new DatabaseManager();
+            config = AppConfig.load();
+            db = new DatabaseManager(config);
             db.migrate();
             ctx = new AppContext(db);
-            // automatic daily safety copy, in the background so startup stays instant
-            Thread backup = new Thread(() -> {
-                try { db.dailyBackup(); } catch (RuntimeException ex) { ex.printStackTrace(); }
-            }, "daily-backup");
-            backup.setDaemon(true);
-            backup.start();
         } catch (RuntimeException e) {
             e.printStackTrace();
-            Ui.error("The database could not be opened:\n\n" + e.getMessage()
-                    + "\n\nYour data is in " + System.getProperty("user.home") + "/AccountingApp. The app will close.");
+            Ui.error("The app could not start:\n\n" + e.getMessage()
+                    + "\n\nSettings and data folder: " + (config != null ? config.dataDir() : System.getProperty("user.home") + "/AccountingApp"));
             javafx.application.Platform.exit();
             return;
         }
 
+        // background: daily safety copy + quick corruption check (startup stays instant)
+        Thread maintenance = new Thread(() -> {
+            try {
+                String health = db.integrityCheck();
+                if (!"ok".equalsIgnoreCase(health))
+                    javafx.application.Platform.runLater(() -> Ui.error("Database check found a problem:\n" + health
+                            + "\n\nStop using the app and restore yesterday's backup (File > Show data & backups folder)."));
+                else
+                    db.dailyBackup(config.backupKeepDays());
+            } catch (RuntimeException ex) {
+                ex.printStackTrace();
+            }
+        }, "maintenance");
+        maintenance.setDaemon(true);
+        maintenance.start();
+
+        LoginWindow.show(ctx.auth, config.companyName(), () -> openMain(db), javafx.application.Platform::exit);
+    }
+
+    /** Builds the main window the first time; afterwards just shows it again (after an unlock). */
+    private void openMain(DatabaseManager db) {
+        if (tabs != null) {
+            stage.setTitle(title());
+            stage.show();
+            restartIdleTimer();
+            refresh(tabs.getSelectionModel().getSelectedItem());
+            return;
+        }
         ledger = new LedgerView(ctx);
         ledgerTab = tab("Ledger", ledger);
         tabs = new TabPane(
@@ -63,22 +92,57 @@ public class AccountingApp extends Application {
 
         MenuItem backup = new MenuItem("Backup database...");
         backup.setOnAction(e -> backup(stage, db));
-        MenuItem folder = new MenuItem("Show data & backups folder");
-        folder.setOnAction(e -> Ui.info("Your data: " + db.getDbFile()
-                + "\n\nAutomatic daily backups (last 30 days): " + db.getDbFile().getParent().resolve("backups")
+        MenuItem folder = new MenuItem("Show data, settings & backups folder");
+        folder.setOnAction(e -> Ui.info("Data: " + db.getDbFile()
+                + "\n\nSettings: " + config.configFile()
+                + "\n\nAutomatic daily backups (last " + config.backupKeepDays() + " days): " + config.backupDir()
                 + "\n\nTo restore: close the app, then copy a backup over AccountingDB."));
         MenuItem exit = new MenuItem("Exit");
-        exit.setOnAction(e -> stage.close());
-        MenuBar menu = new MenuBar(new Menu("File", null, backup, folder, new SeparatorMenuItem(), exit));
+        exit.setOnAction(e -> { ctx.auth.logout(); javafx.application.Platform.exit(); });
+
+        MenuItem lock = new MenuItem("Lock now");
+        lock.setOnAction(e -> lock(db));
+        MenuItem changePw = new MenuItem("Change my password...");
+        changePw.setOnAction(e -> AdminDialogs.changePassword(ctx.auth, stage));
+        MenuItem activity = new MenuItem("Activity log...");
+        activity.setOnAction(e -> AdminDialogs.activityLog(ctx.audit, stage));
+
+        MenuBar menu = new MenuBar(
+                new Menu("File", null, backup, folder, new SeparatorMenuItem(), exit),
+                new Menu("Admin", null, lock, changePw, new SeparatorMenuItem(), activity));
 
         BorderPane root = new BorderPane(tabs);
         root.setTop(menu);
         Scene scene = new Scene(root, 1100, 720);
         scene.getStylesheets().add(getClass().getResource("/app.css").toExternalForm());
-        stage.setTitle("Office Ledger");
+
+        // auto-lock after N idle minutes
+        if (config.autoLockMinutes() > 0) {
+            idle = new javafx.animation.PauseTransition(javafx.util.Duration.minutes(config.autoLockMinutes()));
+            idle.setOnFinished(e -> { if (stage.isShowing()) lock(db); });
+            scene.addEventFilter(javafx.scene.input.InputEvent.ANY, e -> restartIdleTimer());
+        }
+        stage.setOnCloseRequest(e -> { ctx.auth.logout(); javafx.application.Platform.exit(); });
+        stage.setTitle(title());
         stage.setScene(scene);
         stage.show();
+        restartIdleTimer();
         refresh(tabs.getSelectionModel().getSelectedItem());
+    }
+
+    private void lock(DatabaseManager db) {
+        if (idle != null) idle.stop();
+        ctx.auth.logout();
+        stage.hide();
+        LoginWindow.show(ctx.auth, config.companyName(), () -> openMain(db), javafx.application.Platform::exit);
+    }
+
+    private void restartIdleTimer() {
+        if (idle != null) idle.playFromStart();
+    }
+
+    private String title() {
+        return config.companyName() + " - Office Ledger  (" + com.office.application.security.Session.username() + ")";
     }
 
     private static Tab tab(String title, javafx.scene.Node content) {

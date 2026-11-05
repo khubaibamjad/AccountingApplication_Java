@@ -6,6 +6,7 @@ import com.office.application.model.Party;
 import com.office.application.model.PartyType;
 import com.office.application.repository.AccountRepository;
 import com.office.application.repository.PartyRepository;
+import com.office.application.security.AuditLog;
 
 import java.util.List;
 
@@ -17,10 +18,12 @@ public class PartyService {
 
     private final PartyRepository parties;
     private final AccountRepository accounts;
+    private final AuditLog audit;
 
-    public PartyService(PartyRepository parties, AccountRepository accounts) {
+    public PartyService(PartyRepository parties, AccountRepository accounts, AuditLog audit) {
         this.parties = parties;
         this.accounts = accounts;
+        this.audit = audit;
     }
 
     public List<Party> all() {
@@ -50,6 +53,7 @@ public class PartyService {
         Account account = Account.create(code, name, accountType);
         Party party = Party.create(name, type, phone, region, account.id());
         parties.saveWithAccount(party, account);
+        audit.record("PARTY_CREATED", type + " '" + party.name() + "' (account " + code + ")");
         return party;
     }
 
@@ -57,6 +61,7 @@ public class PartyService {
     public void update(Party party) {
         checkDetails(party.name(), party.phone(), party.region(), party);
         parties.save(party);
+        audit.record("PARTY_UPDATED", "'" + party.name() + "' phone=" + party.phone() + " region=" + party.region());
         accounts.findById(party.accountId())
                 .ifPresent(a -> accounts.save(a.withName(party.name())));
     }

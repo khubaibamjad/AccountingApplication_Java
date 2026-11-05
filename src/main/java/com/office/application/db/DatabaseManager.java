@@ -25,9 +25,15 @@ public class DatabaseManager {
         this(Path.of(System.getProperty("user.home"), "AccountingApp", "AccountingDB"));
     }
 
+    public DatabaseManager(com.office.application.config.AppConfig config) {
+        this(config.dbFile());
+    }
+
     public DatabaseManager(Path dbFile) {
         try {
-            Files.createDirectories(dbFile.toAbsolutePath().getParent());
+            Path dir = dbFile.toAbsolutePath().getParent();
+            Files.createDirectories(dir);
+            ownerOnly(dir, "rwx------");
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to create the database folder", e);
         }
@@ -45,6 +51,27 @@ public class DatabaseManager {
             st.execute("PRAGMA optimize");
         } catch (SQLException e) {
             throw new RuntimeException("Could not configure the database: " + e.getMessage(), e);
+        }
+        ownerOnly(dbFile, "rw-------");   // other OS users on this PC cannot read the books
+    }
+
+    /** Fast corruption check (seconds even for big files). Returns "ok" when healthy. */
+    public String integrityCheck() {
+        try (Connection c = getConnection(); Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("PRAGMA quick_check")) {
+            return rs.next() ? rs.getString(1) : "no result";
+        } catch (SQLException e) {
+            return e.getMessage();
+        }
+    }
+
+    /** On Linux/macOS: restrict a file or folder to the current user. Ignored on Windows (uses user profile ACLs). */
+    private static void ownerOnly(Path p, String perms) {
+        try {
+            if (Files.exists(p) && p.getFileSystem().supportedFileAttributeViews().contains("posix"))
+                Files.setPosixFilePermissions(p, java.nio.file.attribute.PosixFilePermissions.fromString(perms));
+        } catch (IOException | UnsupportedOperationException ignored) {
+            // not fatal: e.g. a network drive
         }
     }
 
@@ -76,20 +103,26 @@ public class DatabaseManager {
     }
 
     /**
-     * Once a day, copies the database to AccountingApp/backups and keeps the newest 30 copies.
+     * Once a day, copies the database to <data dir>/backups and keeps the newest keepDays copies.
      * Returns the backup written, or null if today's backup already exists.
      */
     public Path dailyBackup() {
+        return dailyBackup(30);
+    }
+
+    public Path dailyBackup(int keepDays) {
         Path dir = dbFile.getParent().resolve("backups");
         Path today = dir.resolve("AccountingDB-" + java.time.LocalDate.now() + ".db");
         try {
             Files.createDirectories(dir);
             if (Files.exists(today)) return null;
             backupTo(today);
+            ownerOnly(dir, "rwx------");
+            ownerOnly(today, "rw-------");
             try (var files = Files.list(dir)) {
                 files.filter(p -> p.getFileName().toString().matches("AccountingDB-\\d{4}-\\d{2}-\\d{2}\\.db"))
                      .sorted(java.util.Comparator.reverseOrder())
-                     .skip(30)
+                     .skip(keepDays)
                      .forEach(p -> p.toFile().delete());
             }
             return today;

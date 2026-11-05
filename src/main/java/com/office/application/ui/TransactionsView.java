@@ -37,7 +37,7 @@ final class TransactionsView extends VBox implements Refreshable {
             if (sel == null) { Ui.error("Select a transaction first"); return; }
             if (Ui.confirm("Delete '" + sel.description() + "' on " + sel.entryDate() + "?\n\n"
                     + "If a payment was saved together with this sale/purchase, it is deleted too. This cannot be undone."))
-                Ui.attempt(() -> { ctx.journal.delete(sel.id()); refresh(); });
+                Ui.attempt(() -> { ctx.journal.delete(sel.id(), sel.entryDate() + " " + sel.description()); refresh(); });
         });
 
         Button export = new Button("Export CSV");
