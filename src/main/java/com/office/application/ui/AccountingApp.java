@@ -124,6 +124,7 @@ public class AccountingApp extends Application {
         }
         stage.setOnCloseRequest(e -> { ctx.auth.logout(); javafx.application.Platform.exit(); });
         stage.setTitle(title());
+        Branding.apply(stage);
         stage.setScene(scene);
         stage.show();
         restartIdleTimer();
@@ -133,6 +134,9 @@ public class AccountingApp extends Application {
     private void lock(DatabaseManager db) {
         if (idle != null) idle.stop();
         ctx.auth.logout();
+        // hide every other open window too (activity log, dialogs) so no data stays on screen
+        for (javafx.stage.Window w : new java.util.ArrayList<>(javafx.stage.Window.getWindows()))
+            if (w != stage) w.hide();
         stage.hide();
         LoginWindow.show(ctx.auth, config.companyName(), () -> openMain(db), javafx.application.Platform::exit);
     }
@@ -142,7 +146,9 @@ public class AccountingApp extends Application {
     }
 
     private String title() {
-        return config.companyName() + " - Office Ledger  (" + com.office.application.security.Session.username() + ")";
+        String company = config.companyName();
+        return (company.equalsIgnoreCase(Branding.APP_NAME) ? company : Branding.APP_NAME + " - " + company)
+                + "  (" + com.office.application.security.Session.username() + ")";
     }
 
     private static Tab tab(String title, javafx.scene.Node content) {
@@ -166,7 +172,7 @@ public class AccountingApp extends Application {
     private void backup(Stage stage, DatabaseManager db) {
         FileChooser fc = new FileChooser();
         fc.setTitle("Save backup");
-        fc.setInitialFileName("OfficeLedger-backup-" + LocalDate.now() + ".db");
+        fc.setInitialFileName("TexaxisAccounts-backup-" + LocalDate.now() + ".db");
         File target = fc.showSaveDialog(stage);
         if (target == null) return;
         if (Ui.attempt(() -> db.backupTo(target.toPath()))) Ui.info("Backup saved to " + target);

@@ -5,7 +5,8 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.example</groupId>
-    <artifactId>OfficeLedger</artifactId>
+    <artifactId>TexaxisAccounts</artifactId>
+    <name>Texaxis Accounts</name>
     <version>1.0.0</version>
 
     <properties>
@@ -63,7 +64,7 @@
                     </options>
                 </configuration>
             </plugin>
-            <!-- mvn package -> target/OfficeLedger-1.0.0-all.jar (double-clickable / used by jpackage) -->
+            <!-- mvn package -> target/TexaxisAccounts-1.0.0-all.jar (double-clickable / used by jpackage) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>

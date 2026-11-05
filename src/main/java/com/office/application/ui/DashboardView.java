@@ -25,7 +25,9 @@ final class DashboardView extends VBox implements Refreshable {
                 Ui.col("Type", pb -> pb.party().type(), 100),
                 Ui.col("Status", PartyBalance::status, 140),
                 Ui.moneyCol("Amount", pb -> pb.net().abs(), 140));
-        VBox page = Ui.page(Ui.title("Dashboard"), cards, new Label("Open party balances"), open);
+        javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
+        javafx.scene.layout.HBox.setHgrow(spacer, javafx.scene.layout.Priority.ALWAYS);
+        VBox page = Ui.page(Ui.row(Ui.title("Dashboard"), spacer, Branding.logo(40)), cards, new Label("Open party balances"), open);
         getChildren().add(page);
         VBox.setVgrow(page, javafx.scene.layout.Priority.ALWAYS);
     }

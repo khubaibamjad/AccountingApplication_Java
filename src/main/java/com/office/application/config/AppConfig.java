@@ -22,11 +22,11 @@ public record AppConfig(Path dataDir, String companyName, int backupKeepDays, in
     public static final String ENV_AUTOLOCK = "OFFICELEDGER_AUTOLOCK_MINUTES";
 
     private static final String TEMPLATE = """
-            # Office Ledger settings. Environment variables OFFICELEDGER_* override these.
+            # Texaxis Accounts settings. Environment variables OFFICELEDGER_* override these.
             # Restart the app after changing this file.
 
             # Name shown in the window title
-            company.name=Office Ledger
+            company.name=Texaxis Accounts
 
             # How many daily backups to keep in the backups folder (1-365)
             backup.keep.days=30
@@ -37,7 +37,9 @@ public record AppConfig(Path dataDir, String companyName, int backupKeepDays, in
 
     public AppConfig {
         if (dataDir == null) throw new ConfigException("Data folder is not set");
-        if (companyName == null || companyName.isBlank()) companyName = "Office Ledger";
+        // "Office Ledger" was the old default written to settings files: upgrade it to the new name
+        if (companyName == null || companyName.isBlank() || companyName.equalsIgnoreCase("Office Ledger"))
+            companyName = "Texaxis Accounts";
         if (backupKeepDays < 1 || backupKeepDays > 365) throw new ConfigException("backup.keep.days must be between 1 and 365");
         if (autoLockMinutes < 0 || autoLockMinutes > 1440) throw new ConfigException("autolock.minutes must be between 0 and 1440");
     }
@@ -78,7 +80,7 @@ public record AppConfig(Path dataDir, String companyName, int backupKeepDays, in
             throw new ConfigException("Cannot read settings file " + file + ": " + e.getMessage(), e);
         }
 
-        String company = pick(env, ENV_COMPANY, p, "company.name", "Office Ledger");
+        String company = pick(env, ENV_COMPANY, p, "company.name", "Texaxis Accounts");
         int keep = number(pick(env, ENV_BACKUP_DAYS, p, "backup.keep.days", "30"), "backup.keep.days");
         int lock = number(pick(env, ENV_AUTOLOCK, p, "autolock.minutes", "15"), "autolock.minutes");
         return new AppConfig(dataDir, company.trim(), keep, lock);

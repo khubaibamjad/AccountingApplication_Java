@@ -40,7 +40,8 @@ final class AdminDialogs {
         VBox page = Ui.page(Ui.title("Activity log (latest 2000)"), t, export);
         Stage s = new Stage();
         s.initOwner(owner);
-        s.setTitle("Activity log");
+        s.setTitle(Branding.APP_NAME + " - Activity log");
+        Branding.apply(s);
         Scene scene = new Scene(page, 960, 560);
         scene.getStylesheets().add(AdminDialogs.class.getResource("/app.css").toExternalForm());
         s.setScene(scene);
@@ -54,6 +55,7 @@ final class AdminDialogs {
         d.setHeaderText(null);
         d.getDialogPane().setContent(content);
         d.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        Branding.apply(d);
         return d.showAndWait().filter(b -> b == ButtonType.OK).isPresent();
     }
 }

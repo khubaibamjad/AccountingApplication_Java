@@ -263,4 +263,22 @@ class AccountingFlowTest {
         try (var files = java.nio.file.Files.list(dirB)) { assertEquals(30, files.count()); }
         assertTrue(java.nio.file.Files.exists(dirB.resolve("AccountingDB-" + today + ".db")));
     }
+
+    @Test
+    void openingBalancesDoNotTouchProfit() {
+        Party xyz = ctx.parties.createParty("Old Customer", PartyType.CUSTOMER, null, null);
+        Party abc = ctx.parties.createParty("Old Vendor", PartyType.VENDOR, null, null);
+        Account inventory = acc("1200");
+        ctx.transactions.record(new Request(TransactionType.PARTY_OPENING, today, xyz, null, null, new BigDecimal("50000"), null, null, null, null, true));
+        ctx.transactions.record(new Request(TransactionType.PARTY_OPENING, today, abc, null, null, new BigDecimal("20000"), null, null, null, null, false));
+        ctx.transactions.record(req(TransactionType.OWNER_INVESTMENT, null, null, inventory, "300000", null, null, null));   // opening stock
+        assertEquals(m("50000"), net(xyz));
+        assertEquals(m("-20000"), net(abc));
+        assertEquals(m("300000"), ctx.reports.balanceOf(SystemAccounts.INVENTORY, today));
+        assertEquals(m("0"), ctx.reports.netProfit(today.withDayOfMonth(1), today));
+        assertBooksBalance();
+        // a party is required
+        assertThrows(ValidationException.class, () -> ctx.transactions.record(
+                new Request(TransactionType.PARTY_OPENING, today, null, null, null, new BigDecimal("1"), null, null, null, null, true)));
+    }
 }

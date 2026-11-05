@@ -1,0 +1,73 @@
+# Builds the Windows installer for Texaxis Accounts.
+# Trigger: push a tag like v1.0.0  (or run it by hand from the Actions tab).
+# Result:  TexaxisAccounts-<version>.exe attached to a GitHub Release (and as a build artifact).
+name: Windows installer
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create the GitHub Release
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Java 25 (JavaFX 25 needs JDK 23+)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Version from tag
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}"
+          if ($v -notmatch '^v\d+\.\d+\.\d+$') { $v = "v1.0.0" }
+          "version=$($v.Substring(1))" >> $env:GITHUB_OUTPUT
+
+      - name: Run all tests
+        run: mvn -B test
+
+      - name: Build the runnable jar (Windows JavaFX)
+        run: mvn -B -DskipTests package
+
+      - name: Install WiX (needed by jpackage for .exe)
+        run: choco install wixtoolset -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force staging | Out-Null
+          Copy-Item target/TexaxisAccounts-*-all.jar staging/
+          $jar = (Get-ChildItem staging/*.jar).Name
+          jpackage --type exe `
+            --name "TexaxisAccounts" `
+            --app-version "${{ steps.ver.outputs.version }}" `
+            --vendor "Texaxis (SMC-Private) Limited" `
+            --description "Texaxis Accounts - offline accounting" `
+            --input staging --main-jar $jar --main-class com.office.application.Main `
+            --java-options "--enable-native-access=ALL-UNNAMED" `
+            --icon packaging/texaxis.ico `
+            --win-shortcut --win-menu --win-menu-group "Texaxis" --win-dir-chooser `
+            --win-upgrade-uuid "6f1c2e7a-4b9d-4f0e-9a51-3c7d2b8e1f42" `
+            --dest dist
+
+      - name: Upload installer (build artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: TexaxisAccounts-windows
+          path: dist/*.exe
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe
+          generate_release_notes: true

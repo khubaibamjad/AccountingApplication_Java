@@ -21,7 +21,8 @@ final class LoginWindow {
     static void show(AuthService auth, String company, Runnable onSuccess, Runnable onCancel) {
         auth.ensureDefaultAdmin();
         Stage stage = new Stage();
-        stage.setTitle(company + " - Login");
+        stage.setTitle(Branding.APP_NAME + " - Login");
+        Branding.apply(stage);
         stage.setResizable(false);
 
         PasswordField pass = new PasswordField();
@@ -46,7 +47,8 @@ final class LoginWindow {
         g.addRow(0, new Label("Username"), user);
         g.addRow(1, new Label("Password"), pass);
 
-        VBox box = new VBox(12, Ui.title(company), sub, g, ok, error);
+        Label appName = Ui.title("Accounts");
+        VBox box = new VBox(12, Branding.logo(56), appName, sub, g, ok, error);
         box.setPadding(new Insets(24));
 
         final boolean[] done = {false};

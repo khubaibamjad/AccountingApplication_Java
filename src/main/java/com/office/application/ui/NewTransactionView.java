@@ -23,6 +23,7 @@ final class NewTransactionView extends VBox implements Refreshable {
     private final TextField cost = new TextField();
     private final ComboBox<Account> payment = new ComboBox<>();
     private final TextField note = new TextField();
+    private final ComboBox<String> direction = new ComboBox<>();
     private final Label hint = new Label();
     private final GridPane form = Ui.form();
     private final Button save = new Button("Save transaction");
@@ -38,8 +39,10 @@ final class NewTransactionView extends VBox implements Refreshable {
         cost.setPromptText("optional: what these goods cost you");
         note.setPromptText("optional, e.g. invoice #123");
         party.setPromptText("select...");
+        direction.getItems().setAll("They owe us", "We owe them");
+        direction.setValue("They owe us");
         category.setPromptText("select...");
-        for (Control c : List.of(type, date, party, category, product, amount, paidNow, cost, payment, note))
+        for (Control c : List.of(type, date, party, category, product, amount, paidNow, cost, payment, note, direction))
             c.setMaxWidth(Double.MAX_VALUE);
 
         save.setDefaultButton(true);
@@ -54,15 +57,7 @@ final class NewTransactionView extends VBox implements Refreshable {
 
     @Override
     public void refresh() {
-        Account keepPayment = payment.getValue();
-        // money accounts: 1000-1199 (Cash, Bank and any extra bank/petty cash you add)
-        payment.getItems().setAll(ctx.accounts.byType(AccountType.ASSET).stream()
-                .filter(a -> a.code().compareTo("1000") >= 0 && a.code().compareTo("1199") <= 0)
-                .toList());
-        payment.setValue(payment.getItems().stream()
-                .filter(a -> keepPayment != null && a.id().equals(keepPayment.id())).findFirst()
-                .orElse(payment.getItems().stream().findFirst().orElse(null)));
-        layoutForType();
+        layoutForType();   // reloads parties, categories and cash/bank lists
     }
 
     private void layoutForType() {
@@ -74,9 +69,16 @@ final class NewTransactionView extends VBox implements Refreshable {
         if (t.needsParty()) {
             boolean vendors = t == TransactionType.PURCHASE || t == TransactionType.PAYMENT_MADE;
             Party keep = party.getValue();
-            party.getItems().setAll(ctx.parties.forSide(vendors));
+            party.getItems().setAll(t == TransactionType.PARTY_OPENING ? ctx.parties.all() : ctx.parties.forSide(vendors));
             party.setValue(party.getItems().stream().filter(p -> keep != null && p.id().equals(keep.id())).findFirst().orElse(null));
-            form.addRow(r++, new Label((vendors ? "Vendor" : "Customer") + " *"), party);
+            form.addRow(r++, new Label((t == TransactionType.PARTY_OPENING ? "Party" : vendors ? "Vendor" : "Customer") + " *"), party);
+            if (t == TransactionType.PARTY_OPENING) {
+                form.addRow(r++, new Label("Who owes? *"), direction);
+                party.setOnAction(e -> { if (party.getValue() != null)
+                    direction.setValue(party.getValue().type() == PartyType.CUSTOMER ? "They owe us" : "We owe them"); });
+            } else {
+                party.setOnAction(null);
+            }
         }
         if (t.needsCategory()) {
             Account keep = category.getValue();
@@ -93,8 +95,18 @@ final class NewTransactionView extends VBox implements Refreshable {
         form.addRow(r++, new Label((t.canPayPartNow() ? "Total amount" : "Amount") + " *"), amount);
         if (t.canPayPartNow()) form.addRow(r++, new Label(t == TransactionType.SALE ? "Received now" : "Paid now"), paidNow);
         if (t == TransactionType.SALE) form.addRow(r++, new Label("Cost of goods"), cost);
-        form.addRow(r++, new Label(t == TransactionType.PAYMENT_RECEIVED || t == TransactionType.OWNER_INVESTMENT
-                || t == TransactionType.SALE ? "Received into" : "Paid from"), payment);
+        if (t != TransactionType.PARTY_OPENING) {
+            // owner investment may also be opening stock (Inventory 1200); everything else uses cash/bank 1000-1199
+            Account keepPay = payment.getValue();
+            payment.getItems().setAll(ctx.accounts.byType(AccountType.ASSET).stream()
+                    .filter(a -> (a.code().compareTo("1000") >= 0 && a.code().compareTo("1199") <= 0)
+                            || (t == TransactionType.OWNER_INVESTMENT && a.id().equals(SystemAccounts.INVENTORY)))
+                    .toList());
+            payment.setValue(payment.getItems().stream().filter(a -> keepPay != null && a.id().equals(keepPay.id())).findFirst()
+                    .orElse(payment.getItems().stream().findFirst().orElse(null)));
+            form.addRow(r++, new Label(t == TransactionType.PAYMENT_RECEIVED || t == TransactionType.OWNER_INVESTMENT
+                    || t == TransactionType.SALE ? "Received into" : "Paid from"), payment);
+        }
         form.addRow(r, new Label("Note"), note);
 
         hint.setText(switch (t) {
@@ -105,7 +117,8 @@ final class NewTransactionView extends VBox implements Refreshable {
             case PAYMENT_RECEIVED -> "A customer paid you (for earlier sales). Reduces what they owe you. Do NOT record it as a new sale.";
             case EXPENSE -> "Fuel, rent, electricity, office food... Need another category? Add it in the Accounts tab (type EXPENSE).";
             case ASSET_PURCHASE -> "Things the business keeps for years (a car, furniture, computers). Not an expense, so it does not reduce profit. Fuel and repairs for them are expenses.";
-            case OWNER_INVESTMENT -> "Money the owner puts into the business. Use it to record your opening cash and bank balances.";
+            case OWNER_INVESTMENT -> "Money the owner puts in. Also use it once at the start for opening cash, bank and stock (choose Inventory) balances.";
+            case PARTY_OPENING -> "Use once per party when you start using the app: what they already owed you, or you owed them, from before. Does not count as a sale or purchase.";
         });
     }
 
@@ -123,7 +136,8 @@ final class NewTransactionView extends VBox implements Refreshable {
                         t.canPayPartNow() ? Ui.parseMoney(paidNow.getText(), t == TransactionType.SALE ? "Received now" : "Paid now") : null,
                         t == TransactionType.SALE ? Ui.parseMoney(cost.getText(), "Cost of goods") : null,
                         t.needsProduct() ? product.getText() : null,
-                        note.getText());
+                        note.getText(),
+                        "They owe us".equals(direction.getValue()));
 
                 List<String> warnings = ctx.transactions.warnings(req);
                 if (!warnings.isEmpty() && !Ui.confirm(String.join("\n\n", warnings) + "\n\nSave anyway?")) return;

@@ -16,7 +16,7 @@ import java.util.function.Function;
 final class Ui {
     private Ui() { }
 
-    private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00");
+    private static final DecimalFormat MONEY = new DecimalFormat("#,##0.00", java.text.DecimalFormatSymbols.getInstance(java.util.Locale.US));   // same on every PC
 
     static String money(BigDecimal v) {
         return v == null ? "" : MONEY.format(v);
@@ -96,12 +96,16 @@ final class Ui {
     static void error(String message) {
         Alert a = new Alert(Alert.AlertType.ERROR, message, ButtonType.OK);
         a.setHeaderText(null);
+        a.setTitle(Branding.APP_NAME);
+        Branding.apply(a);
         a.showAndWait();
     }
 
     static void info(String message) {
         Alert a = new Alert(Alert.AlertType.INFORMATION, message, ButtonType.OK);
         a.setHeaderText(null);
+        a.setTitle(Branding.APP_NAME);
+        Branding.apply(a);
         a.showAndWait();
     }
 
@@ -155,6 +159,8 @@ final class Ui {
     static boolean confirm(String message) {
         Alert a = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
         a.setHeaderText(null);
+        a.setTitle(Branding.APP_NAME);
+        Branding.apply(a);
         Optional<ButtonType> r = a.showAndWait();
         return r.isPresent() && r.get() == ButtonType.YES;
     }

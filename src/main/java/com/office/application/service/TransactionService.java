@@ -22,10 +22,17 @@ public class TransactionService {
      * What the New Transaction form collects. Unused fields may be null.
      * costOfGoods (sales only, optional): what the sold goods cost you; moves that value
      * from Inventory to Cost of Goods Sold so profit is correct.
+     * theyOweUs (PARTY_OPENING only): true = the party owed you before you started using the app.
      */
     public record Request(TransactionType type, LocalDate date, Party party, Account category,
                           Account paymentAccount, BigDecimal amount, BigDecimal paidNow,
-                          BigDecimal costOfGoods, String product, String note) { }
+                          BigDecimal costOfGoods, String product, String note, boolean theyOweUs) {
+        /** Same as above for every type except PARTY_OPENING (theyOweUs = false). */
+        public Request(TransactionType type, LocalDate date, Party party, Account category, Account paymentAccount,
+                       BigDecimal amount, BigDecimal paidNow, BigDecimal costOfGoods, String product, String note) {
+            this(type, date, party, category, paymentAccount, amount, paidNow, costOfGoods, product, note, false);
+        }
+    }
 
     private final JournalService journal;
     private final ReportService reports;
@@ -92,6 +99,17 @@ public class TransactionService {
                 desc = "Owner investment";
                 lines.add(JournalLine.debit(r.paymentAccount().id(), amount));
                 lines.add(JournalLine.credit(SystemAccounts.OWNER_CAPITAL, amount));
+            }
+            case PARTY_OPENING -> {
+                // dues from before the app: offset against owner's capital so profit is not affected
+                desc = "Opening balance - " + r.party().name() + (r.theyOweUs() ? " owes us" : " is owed by us");
+                if (r.theyOweUs()) {
+                    lines.add(JournalLine.debit(r.party().accountId(), amount));
+                    lines.add(JournalLine.credit(SystemAccounts.OWNER_CAPITAL, amount));
+                } else {
+                    lines.add(JournalLine.debit(SystemAccounts.OWNER_CAPITAL, amount));
+                    lines.add(JournalLine.credit(r.party().accountId(), amount));
+                }
             }
             default -> throw new ValidationException("Unsupported type " + r.type());
         }
@@ -161,7 +179,8 @@ public class TransactionService {
         checkAmount(r.costOfGoods(), "Cost of goods", false);
 
         if (r.type().needsParty() && r.party() == null)
-            throw new ValidationException("Choose a " + (r.type() == TransactionType.PURCHASE || r.type() == TransactionType.PAYMENT_MADE ? "vendor" : "customer"));
+            throw new ValidationException("Choose a " + (r.type() == TransactionType.PARTY_OPENING ? "party"
+                    : r.type() == TransactionType.PURCHASE || r.type() == TransactionType.PAYMENT_MADE ? "vendor" : "customer"));
         if (r.type() == TransactionType.EXPENSE && r.category() == null) throw new ValidationException("Choose an expense category");
         if (r.type() == TransactionType.ASSET_PURCHASE && r.category() == null) throw new ValidationException("Choose which asset you bought");
         if (r.type().needsProduct() && (r.product() == null || r.product().isBlank()))
@@ -173,7 +192,7 @@ public class TransactionService {
         if (paid.compareTo(r.amount()) > 0)
             throw new ValidationException((r.type() == TransactionType.SALE ? "Received now" : "Paid now") + " cannot be more than the total");
 
-        boolean needsPaymentAccount = !r.type().canPayPartNow() || paid.signum() > 0;
+        boolean needsPaymentAccount = r.type() != TransactionType.PARTY_OPENING && (!r.type().canPayPartNow() || paid.signum() > 0);
         if (needsPaymentAccount && r.paymentAccount() == null) throw new ValidationException("Choose Cash or Bank");
     }
 
@@ -193,7 +212,7 @@ public class TransactionService {
     }
 
     private static String money(BigDecimal v) {
-        return new java.text.DecimalFormat("#,##0.00").format(v);
+        return new java.text.DecimalFormat("#,##0.00", java.text.DecimalFormatSymbols.getInstance(java.util.Locale.US)).format(v);
     }
 
     private static String withNote(String desc, String note) {

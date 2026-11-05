@@ -8,7 +8,8 @@ public enum TransactionType {
     PAYMENT_RECEIVED("Payment received (from customer)"),
     EXPENSE("Expense"),
     ASSET_PURCHASE("Buy asset (vehicle, equipment...)"),
-    OWNER_INVESTMENT("Owner investment / opening cash");
+    OWNER_INVESTMENT("Owner investment / opening cash, bank or stock"),
+    PARTY_OPENING("Opening balance of a party (dues from before)");
 
     private final String label;
 
@@ -17,7 +18,7 @@ public enum TransactionType {
     }
 
     public boolean needsParty() {
-        return this != EXPENSE && this != ASSET_PURCHASE && this != OWNER_INVESTMENT;
+        return this != EXPENSE && this != ASSET_PURCHASE && this != OWNER_INVESTMENT;   // PARTY_OPENING needs one
     }
 
     /** Expense and asset purchases need a category / asset account. */

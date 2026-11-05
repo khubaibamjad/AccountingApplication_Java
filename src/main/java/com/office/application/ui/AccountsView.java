@@ -55,6 +55,8 @@ final class AccountsView extends VBox implements Refreshable {
             if (sel == null) { Ui.error("Select an account first"); return; }
             TextInputDialog d = new TextInputDialog(sel.account().name());
             d.setHeaderText(null);
+            d.setTitle(Branding.APP_NAME);
+            Branding.apply(d);
             d.setContentText("New name:");
             d.showAndWait().ifPresent(n -> { if (Ui.attempt(() -> ctx.accounts.rename(sel.account(), n))) refresh(); });
         });
