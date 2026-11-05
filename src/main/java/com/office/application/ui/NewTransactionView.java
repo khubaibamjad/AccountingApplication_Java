@@ -20,6 +20,7 @@ final class NewTransactionView extends VBox implements Refreshable {
     private final TextField amount = new TextField();
     private final TextField paidNow = new TextField();
     private final ComboBox<Account> payment = new ComboBox<>();
+    private final TextField product = new TextField();
     private final TextField note = new TextField();
     private final Label hint = new Label();
     private final GridPane form = Ui.form();
@@ -32,7 +33,8 @@ final class NewTransactionView extends VBox implements Refreshable {
         amount.setPromptText("e.g. 200000");
         paidNow.setPromptText("0 = all on credit");
         note.setPromptText("optional, e.g. invoice #123");
-        for (Control c : List.of(type, date, party, category, amount, paidNow, payment, note)) c.setMaxWidth(Double.MAX_VALUE);
+        product.setPromptText("required, e.g. Cement 50 bags");
+        for (Control c : List.of(type, date, party, category, product, amount, paidNow, payment, note)) c.setMaxWidth(Double.MAX_VALUE);
 
         Button save = new Button("Save transaction");
         save.setDefaultButton(true);
@@ -79,6 +81,7 @@ final class NewTransactionView extends VBox implements Refreshable {
             category.setValue(category.getItems().contains(keep) ? keep : null);
             form.addRow(r++, new Label(t == TransactionType.EXPENSE ? "Expense category" : "Asset"), category);
         }
+        if (t.needsProduct()) form.addRow(r++, new Label("Product *"), product);
         form.addRow(r++, new Label(t.canPayPartNow() ? "Total amount" : "Amount"), amount);
         if (t.canPayPartNow()) form.addRow(r++, new Label(t == TransactionType.SALE ? "Received now" : "Paid now"), paidNow);
         form.addRow(r++, new Label(t == TransactionType.PAYMENT_RECEIVED || t == TransactionType.OWNER_INVESTMENT
@@ -106,9 +109,11 @@ final class NewTransactionView extends VBox implements Refreshable {
                     payment.getValue(),
                     Ui.parseMoney(amount.getText(), "Amount"),
                     t.canPayPartNow() ? Ui.parseMoney(paidNow.getText(), "Paid now") : null,
+                    t.needsProduct() ? product.getText() : null,
                     note.getText());
             JournalEntry e = ctx.transactions.record(req);
             amount.clear();
+            product.clear();
             paidNow.clear();
             note.clear();
             Ui.info("Saved: " + e.description());

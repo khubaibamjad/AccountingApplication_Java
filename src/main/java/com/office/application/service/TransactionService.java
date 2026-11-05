@@ -15,7 +15,7 @@ public class TransactionService {
 
     /** What the New Transaction form collects. Unused fields may be null. */
     public record Request(TransactionType type, LocalDate date, Party party, Account category,
-                          Account paymentAccount, BigDecimal amount, BigDecimal paidNow, String note) { }
+                          Account paymentAccount, BigDecimal amount, BigDecimal paidNow, String product, String note) { }
 
     private final JournalService journal;
 
@@ -33,22 +33,22 @@ public class TransactionService {
 
         switch (r.type()) {
             case PURCHASE -> {
-                desc = "Purchase from " + r.party().name();
+                desc = "Purchase from " + r.party().name() + " - " + r.product().trim();
                 lines.add(JournalLine.debit(SystemAccounts.INVENTORY, amount));
                 lines.add(JournalLine.credit(r.party().accountId(), amount));
                 if (paid.signum() > 0)                         // part paid on the spot: its own entry
-                    extra = JournalEntry.create(r.date(), withNote("Payment to " + r.party().name() + " (with purchase)", r.note()),
+                    extra = JournalEntry.create(r.date(), withNote("Payment to " + r.party().name() + " (with purchase) - " + r.product().trim(), r.note()),
                             List.of(JournalLine.debit(r.party().accountId(), paid),
-                                    JournalLine.credit(r.paymentAccount().id(), paid)));
+                                    JournalLine.credit(r.paymentAccount().id(), paid)), r.product());
             }
             case SALE -> {
-                desc = "Sale to " + r.party().name();
+                desc = "Sale to " + r.party().name() + " - " + r.product().trim();
                 lines.add(JournalLine.debit(r.party().accountId(), amount));
                 lines.add(JournalLine.credit(SystemAccounts.SALES, amount));
                 if (paid.signum() > 0)                         // part received on the spot: its own entry
-                    extra = JournalEntry.create(r.date(), withNote("Payment from " + r.party().name() + " (with sale)", r.note()),
+                    extra = JournalEntry.create(r.date(), withNote("Payment from " + r.party().name() + " (with sale) - " + r.product().trim(), r.note()),
                             List.of(JournalLine.debit(r.paymentAccount().id(), paid),
-                                    JournalLine.credit(r.party().accountId(), paid)));
+                                    JournalLine.credit(r.party().accountId(), paid)), r.product());
             }
             case PAYMENT_MADE -> {
                 desc = "Payment to " + r.party().name();
@@ -78,7 +78,8 @@ public class TransactionService {
             default -> throw new ValidationException("Unsupported type " + r.type());
         }
 
-        JournalEntry entry = JournalEntry.create(r.date(), withNote(desc, r.note()), lines);
+        JournalEntry entry = JournalEntry.create(r.date(), withNote(desc, r.note()), lines,
+                r.type().needsProduct() ? r.product() : null);
         journal.postAll(extra == null ? List.of(entry) : List.of(entry, extra));
         return entry;
     }
@@ -92,6 +93,8 @@ public class TransactionService {
         if (r.date() == null) throw new ValidationException("Choose a date");
         if (r.amount() == null || r.amount().signum() <= 0) throw new ValidationException("Amount must be greater than 0");
         if (r.type().needsParty() && r.party() == null) throw new ValidationException("Choose a party");
+        if (r.type().needsProduct() && (r.product() == null || r.product().isBlank()))
+            throw new ValidationException("Product name is required for a " + (r.type() == TransactionType.SALE ? "sale" : "purchase"));
         if (r.type() == TransactionType.EXPENSE && r.category() == null) throw new ValidationException("Choose an expense category");
         if (r.type() == TransactionType.ASSET_PURCHASE && r.category() == null) throw new ValidationException("Choose which asset you bought");
 

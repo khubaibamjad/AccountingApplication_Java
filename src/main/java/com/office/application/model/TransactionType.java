@@ -25,6 +25,11 @@ public enum TransactionType {
         return this == EXPENSE || this == ASSET_PURCHASE;
     }
 
+    /** Purchases and sales must say which product was bought/sold. */
+    public boolean needsProduct() {
+        return this == PURCHASE || this == SALE;
+    }
+
     public boolean canPayPartNow() {
         return this == PURCHASE || this == SALE;
     }
