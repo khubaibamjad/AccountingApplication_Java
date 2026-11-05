@@ -30,4 +30,25 @@ public final class Money {
             throw new ValidationException(field + " must be a number");
         }
     }
+
+    /**
+     * What a number box accepts while typing: digits, thousands commas and one decimal point with at most
+     * `decimals` digits after it. Empty is allowed (field not filled yet). No letters, no minus sign.
+     */
+    public static boolean isValidInput(String text, int decimals) {
+        if (text == null || text.isEmpty()) return true;
+        if (text.length() > 22) return false;
+        String frac = decimals > 0 ? "(\\.[0-9]{0," + decimals + "})?" : "";
+        return text.matches("[0-9][0-9,]*" + frac) || (decimals > 0 && text.matches("\\.[0-9]{0," + decimals + "}"));
+    }
+
+    /** NTN / CNIC box: digits and dashes only, max 15 characters. */
+    public static boolean isValidNtnInput(String text) {
+        return text == null || text.matches("[0-9-]{0,15}");
+    }
+
+    /** Phone box: digits, spaces, + - ( ), max 30 characters. */
+    public static boolean isValidPhoneInput(String text) {
+        return text == null || text.matches("[0-9+()\\-\\s]{0,30}");
+    }
 }

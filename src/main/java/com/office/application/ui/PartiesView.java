@@ -41,6 +41,8 @@ final class PartiesView extends VBox implements Refreshable {
         taxStatus.getItems().setAll("Unregistered", "Registered");
         taxStatus.setValue("Unregistered");
         ntn.setPromptText("required when registered, e.g. 1234567-8");
+        Ui.ntnField(ntn);
+        Ui.phoneField(phone);
         ntn.setDisable(true);
         taxStatus.setOnAction(e -> {
             boolean reg = "Registered".equals(taxStatus.getValue());
