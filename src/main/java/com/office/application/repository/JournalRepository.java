@@ -11,6 +11,9 @@ import java.util.UUID;
 
 public interface JournalRepository {
     void save(JournalEntry entry);
+
+    /** Saves several entries in ONE transaction (all or none). */
+    void saveAll(List<JournalEntry> entries);
     void delete(UUID entryId);
 
     /** Entries (with their lines) dated between from and to, inclusive. */

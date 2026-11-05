@@ -26,21 +26,29 @@ public class SqliteJournalRepository implements JournalRepository {
 
     @Override
     public void save(JournalEntry entry) {
+        saveAll(List.of(entry));
+    }
+
+    @Override
+    public void saveAll(List<JournalEntry> entries) {
         jdbc.inTransaction(conn -> {
-            try (PreparedStatement es = Jdbc.prepare(conn,
-                    "INSERT INTO journal_entries (id, entry_date, description) VALUES (?, ?, ?)",
-                    entry.id(), entry.entryDate(), entry.description())) {
-                es.executeUpdate();
-            }
-            try (PreparedStatement ls = conn.prepareStatement(
-                    "INSERT INTO journal_lines (id, entry_id, account_id, debit, credit) VALUES (?, ?, ?, ?, ?)")) {
-                for (JournalLine line : entry.lines()) {
-                    ls.setString(1, line.id().toString());
-                    ls.setString(2, entry.id().toString());
-                    ls.setString(3, line.accountId().toString());
-                    ls.setBigDecimal(4, line.debit());
-                    ls.setBigDecimal(5, line.credit());
-                    ls.addBatch();
+            try (PreparedStatement es = conn.prepareStatement(
+                         "INSERT INTO journal_entries (id, entry_date, description) VALUES (?, ?, ?)");
+                 PreparedStatement ls = conn.prepareStatement(
+                         "INSERT INTO journal_lines (id, entry_id, account_id, debit, credit) VALUES (?, ?, ?, ?, ?)")) {
+                for (JournalEntry entry : entries) {
+                    es.setString(1, entry.id().toString());
+                    es.setString(2, entry.entryDate().toString());
+                    es.setString(3, entry.description());
+                    es.executeUpdate();
+                    for (JournalLine line : entry.lines()) {
+                        ls.setString(1, line.id().toString());
+                        ls.setString(2, entry.id().toString());
+                        ls.setString(3, line.accountId().toString());
+                        ls.setBigDecimal(4, line.debit());
+                        ls.setBigDecimal(5, line.credit());
+                        ls.addBatch();
+                    }
                 }
                 ls.executeBatch();
             }

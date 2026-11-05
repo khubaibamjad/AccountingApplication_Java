@@ -71,6 +71,8 @@ class AccountingFlowTest {
         var ledger = ctx.reports.ledger(ctx.accounts.all().stream().filter(a -> a.id().equals(abc.accountId())).findFirst().orElseThrow(),
                 today.withDayOfMonth(1), today);
         assertEquals(m("100000"), ledger.get(ledger.size() - 1).balance());
+        assertEquals("Purchase from ABC Traders - inv 1", ledger.get(1).description());
+        assertEquals("Payment to ABC Traders (with purchase) - inv 1", ledger.get(2).description());
 
         // delete the expense -> cash goes back up
         var expense = ctx.journal.entries(today, today).stream().filter(e -> e.description().startsWith("Rent")).findFirst().orElseThrow();
