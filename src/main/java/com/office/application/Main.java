@@ -2,20 +2,21 @@ package com.office.application;
 
 import com.office.application.config.AppConfig;
 import com.office.application.db.DatabaseManager;
-import com.office.application.model.Account;
-import com.office.application.model.AccountType;
-import com.office.application.model.Party;
-import com.office.application.model.PartyType;
+import com.office.application.model.*;
 import com.office.application.repository.AccountRepository;
 import com.office.application.repository.PartyRepository;
 import com.office.application.repository.sqlite.sqlitePartyRepository;
 import com.office.application.repository.sqlite.sqliteRepository;
 import com.office.application.service.PartyService;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
@@ -75,23 +76,39 @@ public class Main {
         PartyRepository parties = new sqlitePartyRepository(db);
         PartyService partyService = new PartyService(parties, accounts);
 
-        if (parties.findAll().isEmpty()) {
-            partyService.createParty("ABC Traders", PartyType.VENDOR, "0300-1234567", "Lahore");
-            partyService.createParty("XYZ Ltd", PartyType.CUSTOMER, null, "Karachi");
-            System.out.println("Created 2 parties");
-        }
+//        if (parties.findAll().isEmpty()) {
+//            partyService.createParty("ABC Traders", PartyType.VENDOR, "0300-1234567", "Lahore");
+//            partyService.createParty("XYZ Ltd", PartyType.CUSTOMER, null, "Karachi");
+//            System.out.println("Created 2 parties");
+//        }
+//
+//        System.out.println("--- Parties ---");
+//        parties.findAll().forEach(System.out::println);
+//
+//        System.out.println("--- Accounts ---");
+//        accounts.findAll().forEach(a -> System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")"));
+//
+//        System.out.println("--- All parties ---");
+//        parties.findAll().forEach(System.out::println);
+//
+//        System.out.println("--- Vendors only ---");
+//        parties.findByType(PartyType.VENDOR).forEach(System.out::println);
 
-        System.out.println("--- Parties ---");
-        parties.findAll().forEach(System.out::println);
+        Party abc = parties.findByType(PartyType.VENDOR).get(0);
+        UUID inventory = accounts.findByCode("1200").orElseThrow().id();
+        UUID cash      = accounts.findByCode("1000").orElseThrow().id();
 
-        System.out.println("--- Accounts ---");
-        accounts.findAll().forEach(a -> System.out.println(a.code() + "  " + a.name() + "  (" + a.type() + ")"));
+        JournalEntry purchase = JournalEntry.create(
+                LocalDate.now(),
+                "Stock purchase from ABC Traders",
+                List.of(
+                        JournalLine.debit (inventory,       new BigDecimal("200000")),
+                        JournalLine.credit(cash,            new BigDecimal("100000")),
+                        JournalLine.credit(abc.accountId(), new BigDecimal("100000"))
+                ));
 
-        System.out.println("--- All parties ---");
-        parties.findAll().forEach(System.out::println);
-
-        System.out.println("--- Vendors only ---");
-        parties.findByType(PartyType.VENDOR).forEach(System.out::println);
+        System.out.println(purchase.description() + " on " + purchase.entryDate());
+        purchase.lines().forEach(System.out::println);
 
     }
 }
