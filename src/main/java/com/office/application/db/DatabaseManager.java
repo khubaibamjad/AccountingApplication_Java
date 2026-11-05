@@ -52,6 +52,8 @@ public class DatabaseManager {
 
     /** Writes a consistent copy of the whole database to the target file. */
     public void backupTo(Path target) {
+        if (target.toAbsolutePath().normalize().equals(dbFile.normalize()))
+            throw new IllegalArgumentException("Choose a different file: that is the live database itself.");
         try {
             Files.deleteIfExists(target);
             try (Connection c = getConnection(); PreparedStatement ps = c.prepareStatement("VACUUM INTO ?")) {

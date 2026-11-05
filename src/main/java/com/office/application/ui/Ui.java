@@ -105,6 +105,53 @@ final class Ui {
         a.showAndWait();
     }
 
+    /** Reads what the user typed into a DatePicker even if they never pressed Enter. */
+    static java.time.LocalDate dateOf(DatePicker picker) {
+        String text = picker.getEditor().getText();
+        if (text == null || text.isBlank()) return null;
+        try {
+            java.time.LocalDate d = picker.getConverter().fromString(text.trim());
+            picker.setValue(d);
+            return d;
+        } catch (RuntimeException e) {
+            throw new ValidationException("'" + text.trim() + "' is not a valid date");
+        }
+    }
+
+    /** Saves any table as a CSV file (opens in Excel), using the text shown in each column. */
+    static void exportCsv(TableView<?> table, String suggestedName, javafx.stage.Window owner) {
+        javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+        fc.setTitle("Export to CSV");
+        fc.setInitialFileName(suggestedName.replaceAll("[^A-Za-z0-9 _-]", "") + ".csv");
+        fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("CSV (Excel)", "*.csv"));
+        java.io.File f = fc.showSaveDialog(owner);
+        if (f == null) return;
+        attempt(() -> {
+            StringBuilder sb = new StringBuilder("\uFEFF");   // BOM so Excel reads UTF-8
+            java.util.List<? extends TableColumn<?, ?>> cols = table.getColumns();
+            sb.append(cols.stream().map(c -> csv(c.getText())).collect(java.util.stream.Collectors.joining(","))).append("\r\n");
+            for (int r = 0; r < table.getItems().size(); r++) {
+                final int row = r;
+                sb.append(cols.stream().map(c -> {
+                    Object v = c.getCellData(row);
+                    return csv(v == null ? "" : v.toString());
+                }).collect(java.util.stream.Collectors.joining(","))).append("\r\n");
+            }
+            try {
+                java.nio.file.Files.writeString(f.toPath(), sb.toString(), java.nio.charset.StandardCharsets.UTF_8);
+            } catch (java.io.IOException e) {
+                throw new ValidationException("Could not save the file: " + e.getMessage());
+            }
+            info("Exported " + table.getItems().size() + " rows to " + f.getName());
+        });
+    }
+
+    private static String csv(String s) {
+        String t = s.strip();
+        if (t.startsWith("=") || t.startsWith("+") || t.startsWith("@")) t = "'" + t;   // stop Excel running it as a formula
+        return (t.contains(",") || t.contains("\"") || t.contains("\n")) ? "\"" + t.replace("\"", "\"\"") + "\"" : t;
+    }
+
     static boolean confirm(String message) {
         Alert a = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.YES, ButtonType.NO);
         a.setHeaderText(null);

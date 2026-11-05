@@ -21,9 +21,25 @@ public class AccountingApp extends Application {
 
     @Override
     public void start(Stage stage) {
-        DatabaseManager db = new DatabaseManager();
-        db.migrate();
-        AppContext ctx = new AppContext(db);
+        // any unexpected error anywhere: show it instead of failing silently
+        Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+            e.printStackTrace();
+            javafx.application.Platform.runLater(() -> Ui.error("Unexpected error: " + e));
+        });
+
+        DatabaseManager db;
+        AppContext ctx;
+        try {
+            db = new DatabaseManager();
+            db.migrate();
+            ctx = new AppContext(db);
+        } catch (RuntimeException e) {
+            e.printStackTrace();
+            Ui.error("The database could not be opened:\n\n" + e.getMessage()
+                    + "\n\nYour data is in " + System.getProperty("user.home") + "/AccountingApp. The app will close.");
+            javafx.application.Platform.exit();
+            return;
+        }
 
         ledger = new LedgerView(ctx);
         ledgerTab = tab("Ledger", ledger);

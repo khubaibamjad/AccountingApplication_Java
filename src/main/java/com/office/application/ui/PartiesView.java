@@ -62,9 +62,15 @@ final class PartiesView extends VBox implements Refreshable {
         });
 
         VBox page = Ui.page(Ui.title("Parties (customers & vendors)"), search, table,
-                Ui.row(ledger, edit), new Label("Add / edit party"), form, Ui.row(save, clear));
+                Ui.row(ledger, edit, exportBtn()), new Label("Add / edit party"), form, Ui.row(save, clear));
         VBox.setVgrow(page, javafx.scene.layout.Priority.ALWAYS);
         getChildren().add(page);
+    }
+
+    private Button exportBtn() {
+        Button b = new Button("Export CSV");
+        b.setOnAction(e -> Ui.exportCsv(table, "Parties " + LocalDate.now(), getScene().getWindow()));
+        return b;
     }
 
     private void startEdit() {

@@ -31,6 +31,25 @@ public class ReportService {
         return account.type().balance(t.debit(), t.credit());
     }
 
+    /** Balance of an account by id (e.g. SystemAccounts.INVENTORY). */
+    public BigDecimal balanceOf(UUID accountId, LocalDate upTo) {
+        return accounts.findById(accountId).map(a -> balance(a, upTo)).orElse(BigDecimal.ZERO);
+    }
+
+    /** Every account's balance in one query (for screens listing many accounts). */
+    public Map<UUID, BigDecimal> balances(LocalDate upTo) {
+        Map<UUID, AccountTotals> totals = journals.totalsByAccount(null, upTo);
+        Map<UUID, BigDecimal> out = new java.util.HashMap<>();
+        for (Account a : accounts.findAll()) out.put(a.id(), balanceFrom(a, totals));
+        return out;
+    }
+
+    /** Debit minus credit on the party's account: > 0 they owe you, < 0 you owe them. */
+    public BigDecimal partyNet(Party party, LocalDate upTo) {
+        AccountTotals t = journals.totalsByAccount(null, upTo).getOrDefault(party.accountId(), AccountTotals.ZERO);
+        return t.debit().subtract(t.credit());
+    }
+
     /** Account statement: opening balance, every posting with a running balance, closing balance. */
     public List<LedgerRow> ledger(Account account, LocalDate from, LocalDate to) {
         BigDecimal running = balance(account, from.minusDays(1));

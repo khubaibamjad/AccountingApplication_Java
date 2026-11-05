@@ -37,10 +37,8 @@ public class PartyService {
 
     /** Creates the party and its own ledger account together. */
     public Party createParty(String name, PartyType type, String phone, String region) {
-        if (name == null || name.isBlank()) throw new ValidationException("Party name is required");
         if (type == null) throw new ValidationException("Choose a party type");
-        boolean nameTaken = parties.findAll().stream().anyMatch(p -> p.name().equalsIgnoreCase(name.trim()));
-        if (nameTaken) throw new ValidationException("A party named '" + name.trim() + "' already exists");
+        checkDetails(name, phone, region, null);
 
         // Customers owe you (ASSET). Vendors and BOTH are owed (LIABILITY); the sign of the balance tells the direction.
         boolean customer = type == PartyType.CUSTOMER;
@@ -57,8 +55,25 @@ public class PartyService {
 
     /** Updates contact details; keeps the party's account name in sync. */
     public void update(Party party) {
+        checkDetails(party.name(), party.phone(), party.region(), party);
         parties.save(party);
         accounts.findById(party.accountId())
                 .ifPresent(a -> accounts.save(a.withName(party.name())));
+    }
+
+    private void checkDetails(String name, String phone, String region, Party self) {
+        if (name == null || name.isBlank()) throw new ValidationException("Party name is required");
+        String n = name.trim();
+        if (n.length() > 150) throw new ValidationException("Party name is too long (max 150 characters)");
+        if (phone != null && !phone.isBlank() && !phone.trim().matches("[0-9+()\\-\\s]{3,30}"))
+            throw new ValidationException("Phone can only contain digits, spaces, + - ( ) (3 to 30 characters)");
+        if (region != null && region.trim().length() > 50) throw new ValidationException("Region is too long (max 50 characters)");
+
+        boolean partyTaken = parties.findAll().stream()
+                .anyMatch(p -> p.name().equalsIgnoreCase(n) && (self == null || !p.id().equals(self.id())));
+        if (partyTaken) throw new ValidationException("A party named '" + n + "' already exists");
+        boolean accountTaken = accounts.findAll().stream()
+                .anyMatch(a -> a.name().equalsIgnoreCase(n) && (self == null || !a.id().equals(self.accountId())));
+        if (accountTaken) throw new ValidationException("'" + n + "' is already the name of an account. Use a different name.");
     }
 }

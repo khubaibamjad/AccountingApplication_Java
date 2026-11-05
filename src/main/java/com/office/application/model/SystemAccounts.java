@@ -11,4 +11,5 @@ public final class SystemAccounts {
     public static final UUID INVENTORY     = UUID.fromString("00000000-0000-0000-0000-000000001200");
     public static final UUID OWNER_CAPITAL = UUID.fromString("00000000-0000-0000-0000-000000003000");
     public static final UUID SALES         = UUID.fromString("00000000-0000-0000-0000-000000004000");
+    public static final UUID COST_OF_GOODS_SOLD = UUID.fromString("00000000-0000-0000-0000-000000005000");
 }

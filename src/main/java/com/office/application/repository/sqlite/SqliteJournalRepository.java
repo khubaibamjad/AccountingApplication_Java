@@ -33,7 +33,7 @@ public class SqliteJournalRepository implements JournalRepository {
     public void saveAll(List<JournalEntry> entries) {
         jdbc.inTransaction(conn -> {
             try (PreparedStatement es = conn.prepareStatement(
-                         "INSERT INTO journal_entries (id, entry_date, description, product) VALUES (?, ?, ?, ?)");
+                         "INSERT INTO journal_entries (id, entry_date, description, product, linked_entry_id) VALUES (?, ?, ?, ?, ?)");
                  PreparedStatement ls = conn.prepareStatement(
                          "INSERT INTO journal_lines (id, entry_id, account_id, debit, credit) VALUES (?, ?, ?, ?, ?)")) {
                 for (JournalEntry entry : entries) {
@@ -41,6 +41,9 @@ public class SqliteJournalRepository implements JournalRepository {
                     es.setString(2, entry.entryDate().toString());
                     es.setString(3, entry.description());
                     es.setString(4, entry.product());
+                    // entries saved together (a sale + the payment taken with it) are linked to the first one
+                    JournalEntry first = entries.get(0);
+                    es.setString(5, entry == first ? null : first.id().toString());
                     es.executeUpdate();
                     for (JournalLine line : entry.lines()) {
                         ls.setString(1, line.id().toString());
@@ -56,13 +59,17 @@ public class SqliteJournalRepository implements JournalRepository {
         });
     }
 
+    /** Deletes the entry and any entry saved together with it (e.g. the payment taken with a sale). */
     @Override
     public void delete(UUID entryId) {
         jdbc.inTransaction(conn -> {
-            try (PreparedStatement ps = Jdbc.prepare(conn, "DELETE FROM journal_lines WHERE entry_id = ?", entryId)) {
+            String ids = "SELECT id FROM journal_entries WHERE id = ? OR linked_entry_id = ?";
+            try (PreparedStatement ps = Jdbc.prepare(conn,
+                    "DELETE FROM journal_lines WHERE entry_id IN (" + ids + ")", entryId, entryId)) {
                 ps.executeUpdate();
             }
-            try (PreparedStatement ps = Jdbc.prepare(conn, "DELETE FROM journal_entries WHERE id = ?", entryId)) {
+            try (PreparedStatement ps = Jdbc.prepare(conn,
+                    "DELETE FROM journal_entries WHERE id = ? OR linked_entry_id = ?", entryId, entryId)) {
                 ps.executeUpdate();
             }
         });

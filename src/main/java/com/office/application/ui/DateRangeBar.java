@@ -57,10 +57,32 @@ final class DateRangeBar extends HBox {
     }
 
     LocalDate from() {
-        return from.getValue() == null ? LocalDate.of(2000, 1, 1) : from.getValue();
+        LocalDate f = rawFrom(), t = rawTo();
+        return f.isAfter(t) ? t : f;          // tolerate From/To entered the wrong way round
     }
 
     LocalDate to() {
-        return to.getValue() == null ? LocalDate.now() : to.getValue();
+        LocalDate f = rawFrom(), t = rawTo();
+        return f.isAfter(t) ? f : t;
+    }
+
+    private LocalDate rawFrom() {
+        LocalDate d = safe(from);
+        return d == null ? LocalDate.of(2000, 1, 1) : d;
+    }
+
+    private LocalDate rawTo() {
+        LocalDate d = safe(to);
+        return d == null ? LocalDate.now() : d;
+    }
+
+    /** Typed-but-not-committed text counts; an unreadable date falls back to the last good value. */
+    private static LocalDate safe(DatePicker p) {
+        try {
+            return Ui.dateOf(p);
+        } catch (RuntimeException e) {
+            p.getEditor().setText(p.getConverter().toString(p.getValue()));
+            return p.getValue();
+        }
     }
 }

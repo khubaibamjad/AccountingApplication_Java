@@ -61,16 +61,22 @@ final class AccountsView extends VBox implements Refreshable {
 
         VBox page = Ui.page(Ui.title("Chart of Accounts"),
                 new Label("Double-click an account to open its ledger. Party accounts (13xx customers, 21xx vendors) are created automatically."),
-                table, rename, new Label("Add account (e.g. a new expense category)"), form, add);
+                table, Ui.row(rename, export(table, "Accounts")), new Label("Add account (e.g. a new expense category)"), form, add);
         VBox.setVgrow(page, javafx.scene.layout.Priority.ALWAYS);
         getChildren().add(page);
     }
 
+    private static Button export(TableView<?> t, String name) {
+        Button b = new Button("Export CSV");
+        b.setOnAction(e -> Ui.exportCsv(t, name + " " + LocalDate.now(), b.getScene().getWindow()));
+        return b;
+    }
+
     @Override
     public void refresh() {
-        LocalDate today = LocalDate.now();
+        java.util.Map<java.util.UUID, BigDecimal> bal = ctx.reports.balances(LocalDate.now());   // one query for all
         table.getItems().setAll(ctx.accounts.all().stream()
-                .map(a -> new Row(a, ctx.reports.balance(a, today)))
+                .map(a -> new Row(a, bal.getOrDefault(a.id(), BigDecimal.ZERO)))
                 .toList());
     }
 }

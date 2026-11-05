@@ -36,7 +36,13 @@ final class ReportsView extends VBox implements Refreshable {
         VBox.setVgrow(tabs, javafx.scene.layout.Priority.ALWAYS);
         asOfNote.getStyleClass().add("hint");
 
-        VBox page = Ui.page(Ui.title("Reports"), range, asOfNote, tabs);
+        Button export = new Button("Export current report (CSV)");
+        export.setOnAction(e -> {
+            Tab t = tabs.getSelectionModel().getSelectedItem();
+            TableView<?> table = t.getText().startsWith("Profit") ? pnl : t.getText().startsWith("Balance") ? sheet : trial;
+            Ui.exportCsv(table, t.getText() + " " + range.from() + " to " + range.to(), getScene().getWindow());
+        });
+        VBox page = Ui.page(Ui.title("Reports"), range, asOfNote, tabs, export);
         VBox.setVgrow(page, javafx.scene.layout.Priority.ALWAYS);
         getChildren().add(page);
     }

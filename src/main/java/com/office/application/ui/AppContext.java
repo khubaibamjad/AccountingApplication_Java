@@ -26,10 +26,10 @@ public final class AppContext {
         PartyRepository partyRepo = new SqlitePartyRepository(db);
         JournalRepository journalRepo = new SqliteJournalRepository(db);
 
-        this.accounts = new AccountService(accountRepo);
+        this.accounts = new AccountService(accountRepo, partyRepo);
         this.parties = new PartyService(partyRepo, accountRepo);
         this.journal = new JournalService(journalRepo, accountRepo);
-        this.transactions = new TransactionService(journal);
         this.reports = new ReportService(journalRepo, accountRepo, partyRepo);
+        this.transactions = new TransactionService(journal, reports);
     }
 }

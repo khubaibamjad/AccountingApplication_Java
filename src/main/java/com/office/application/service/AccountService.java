@@ -3,15 +3,18 @@ package com.office.application.service;
 import com.office.application.model.Account;
 import com.office.application.model.AccountType;
 import com.office.application.repository.AccountRepository;
+import com.office.application.repository.PartyRepository;
 
 import java.util.List;
 
 public class AccountService {
 
     private final AccountRepository accounts;
+    private final PartyRepository parties;
 
-    public AccountService(AccountRepository accounts) {
+    public AccountService(AccountRepository accounts, PartyRepository parties) {
         this.accounts = accounts;
+        this.parties = parties;
     }
 
     public List<Account> all() {
@@ -23,22 +26,36 @@ public class AccountService {
     }
 
     public Account create(String code, String name, AccountType type) {
-        if (code == null || !code.trim().matches("\\d{4}")) throw new ValidationException("Code must be 4 digits, e.g. 5300");
-        if (name == null || name.isBlank()) throw new ValidationException("Name is required");
         if (type == null) throw new ValidationException("Choose an account type");
-        if (accounts.findByCode(code.trim()).isPresent()) throw new ValidationException("Code " + code.trim() + " is already used");
-        Account a = Account.create(code, name, type);
+        String c = code == null ? "" : code.trim();
+        if (!c.matches("\\d{4}")) throw new ValidationException("Code must be 4 digits, e.g. 5300");
+        int n = Integer.parseInt(c);
+        if (n < type.codeStart || n > type.codeEnd)
+            throw new ValidationException(type + " codes must be between " + type.codeStart + " and " + type.codeEnd);
+        if (accounts.findByCode(c).isPresent()) throw new ValidationException("Code " + c + " is already used");
+        checkName(name, null);
+        Account a = Account.create(c, name, type);
         accounts.save(a);
         return a;
     }
 
     public void rename(Account account, String newName) {
-        if (newName == null || newName.isBlank()) throw new ValidationException("Name is required");
+        if (parties.findAll().stream().anyMatch(p -> p.accountId().equals(account.id())))
+            throw new ValidationException("This is a party's account. Rename the party in the Parties tab instead.");
+        checkName(newName, account);
         accounts.save(account.withName(newName));
     }
 
     /** Next free code in the type's range, e.g. 5300 after 5200. */
     public String suggestCode(AccountType type) {
         return CodeAllocator.next(accounts.findAll(), type.codeStart, type.codeEnd, 100);
+    }
+
+    private void checkName(String name, Account self) {
+        if (name == null || name.isBlank()) throw new ValidationException("Name is required");
+        if (name.trim().length() > 150) throw new ValidationException("Name is too long (max 150 characters)");
+        boolean taken = accounts.findAll().stream()
+                .anyMatch(a -> a.name().equalsIgnoreCase(name.trim()) && (self == null || !a.id().equals(self.id())));
+        if (taken) throw new ValidationException("An account named '" + name.trim() + "' already exists");
     }
 }

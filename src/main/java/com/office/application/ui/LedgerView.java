@@ -38,7 +38,12 @@ final class LedgerView extends VBox implements Refreshable {
             }
         });
 
-        VBox page = Ui.page(Ui.title("Ledger / Statement"), Ui.row(new Label("Account:"), account), range, table);
+        javafx.scene.control.Button export = new javafx.scene.control.Button("Export CSV");
+        export.setOnAction(e -> {
+            if (account.getValue() == null) { Ui.error("Choose an account first"); return; }
+            Ui.exportCsv(table, "Ledger " + account.getValue().name() + " " + range.from() + " to " + range.to(), getScene().getWindow());
+        });
+        VBox page = Ui.page(Ui.title("Ledger / Statement"), Ui.row(new Label("Account:"), account), range, table, export);
         VBox.setVgrow(page, javafx.scene.layout.Priority.ALWAYS);
         getChildren().add(page);
     }
@@ -53,7 +58,8 @@ final class LedgerView extends VBox implements Refreshable {
     public void refresh() {
         Account keep = account.getValue();
         account.getItems().setAll(ctx.accounts.all());
-        if (keep != null) account.getItems().stream().filter(a -> a.id().equals(keep.id())).findFirst().ifPresent(account::setValue);
+        java.util.UUID wanted = keep != null ? keep.id() : com.office.application.model.SystemAccounts.CASH;   // default: Cash
+        account.getItems().stream().filter(a -> a.id().equals(wanted)).findFirst().ifPresent(account::setValue);
         load();
     }
 

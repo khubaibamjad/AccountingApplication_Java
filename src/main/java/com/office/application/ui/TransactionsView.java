@@ -29,17 +29,20 @@ final class TransactionsView extends VBox implements Refreshable {
                 Ui.col("Description", JournalEntry::description, 280),
                 Ui.col("Product", JournalEntry::product, 140),
                 Ui.col("Details", this::details, 380),
-                Ui.moneyCol("Amount", e -> e.lines().stream().map(JournalLine::debit).reduce(BigDecimal.ZERO, BigDecimal::add), 120));
+                Ui.moneyCol("Amount", e -> e.lines().stream().map(JournalLine::debit).max(BigDecimal::compareTo).orElse(BigDecimal.ZERO), 120));
 
         Button delete = new Button("Delete selected");
         delete.setOnAction(e -> {
             JournalEntry sel = table.getSelectionModel().getSelectedItem();
             if (sel == null) { Ui.error("Select a transaction first"); return; }
-            if (Ui.confirm("Delete '" + sel.description() + "' on " + sel.entryDate() + "?"))
+            if (Ui.confirm("Delete '" + sel.description() + "' on " + sel.entryDate() + "?\n\n"
+                    + "If a payment was saved together with this sale/purchase, it is deleted too. This cannot be undone."))
                 Ui.attempt(() -> { ctx.journal.delete(sel.id()); refresh(); });
         });
 
-        VBox page = Ui.page(Ui.title("Transactions"), range, table, delete);
+        Button export = new Button("Export CSV");
+        export.setOnAction(e -> Ui.exportCsv(table, "Transactions " + range.from() + " to " + range.to(), getScene().getWindow()));
+        VBox page = Ui.page(Ui.title("Transactions"), range, table, Ui.row(delete, export));
         VBox.setVgrow(page, javafx.scene.layout.Priority.ALWAYS);
         getChildren().add(page);
     }
